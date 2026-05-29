@@ -8,9 +8,8 @@ const SHEET_BILLS = 'บิลลูกค้า';
 const SHEET_ITEMS = 'รายการเลข';
 
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('วาว พารวย - ระบบรับหวย')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Connected to Google Sheets API" }))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function getOrCreateSheet(name) {
