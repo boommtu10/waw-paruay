@@ -111,7 +111,7 @@
     font-weight: 400;
     letter-spacing: 0.5px;
   }
-  /* ===== MOBILE BOTTOM NAV ===== */
+  /* ===== BOTTOM NAV (Mobile only) ===== */
 .nav-tabs{
   position: fixed;
   bottom: 0;
@@ -149,8 +149,53 @@
   min-height:58px;
 }
 
+/* ===== DESKTOP NAV (top-right in header) ===== */
+@media (min-width: 769px) {
+  .nav-tabs {
+    position: static;
+    background: transparent;
+    backdrop-filter: none;
+    display: flex;
+    flex-direction: row;
+    grid-template-columns: none;
+    padding: 0;
+    border-top: none;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .nav-tab {
+    flex-direction: row;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: auto;
+    color: var(--text2);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-tab:hover {
+    background: rgba(245,197,24,0.08);
+    color: var(--gold);
+    border-color: rgba(245,197,24,0.2);
+  }
+  .nav-tab.active {
+    background: rgba(245,197,24,0.15);
+    color: var(--gold);
+    border-color: rgba(245,197,24,0.35);
+  }
+  .tab-icon { font-size: 15px; }
+  /* Give body enough bottom padding on desktop */
+  body { padding-bottom: 0; }
+  .page { padding-bottom: 40px; }
+}
+
   /* ===== PAGES ===== */
-  .page { display: none; padding: 24px 20px; max-width: 900px; margin: 0 auto; }
+  .page { display: none; padding: 24px 20px; max-width: 900px; margin: 0 auto; padding-bottom: 100px; }
   .page.active { display: block; }
 
   /* ===== CARD ===== */
@@ -619,6 +664,19 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+  }
+  /* Mobile: single column agent cards so header doesn't overflow */
+  @media (max-width: 600px) {
+    .agent-card-grid {
+      grid-template-columns: 1fr;
+    }
+    .agent-card-header {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .agent-card-header > div:last-child {
+      width: 100%;
+    }
   }
   @media(max-width:768px){
 
