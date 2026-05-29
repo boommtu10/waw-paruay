@@ -4342,6 +4342,52 @@ function exportBillImages() {
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+// 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFoqZBHTgcc3NSipcCnMe8AXI4B366b9YzFwbdPTv3RKvZneWQw7o04IIo1CotLk2x/exec";
+
+// 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
+const google = {
+  script: {
+    run: {
+      // สร้างระบบดักฟัง (Proxy) เพื่อเปลี่ยนคำสั่งเดิมให้วิ่งไปหาลิงก์ URL แทน
+      withSuccessHandler: function(onSuccess) {
+        return {
+          withFailureHandler: function(onFailure) {
+            return new Proxy({}, {
+              get: function(target, functionName) {
+                return function(...args) {
+                  // ใช้ fetch เพื่อส่งข้อมูลข้ามระบบจาก GitHub ไป Google
+                  fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "cors",
+                    headers: {
+                      "Content-Type": "text/plain;charset=utf-8"
+                    },
+                    body: JSON.stringify({
+                      action: functionName,
+                      arguments: args
+                    })
+                  })
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.success) {
+                      if (onSuccess) onSuccess(data);
+                    } else {
+                      if (onFailure) onFailure(data.error);
+                    }
+                  })
+                  .catch(error => {
+                    if (onFailure) onFailure(error.message);
+                  });
+                };
+              }
+            });
+          }
+        };
+      }
+    }
+  }
+};
 </script>
 </body>
 </html>
