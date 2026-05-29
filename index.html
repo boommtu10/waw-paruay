@@ -4371,7 +4371,7 @@ const google = {
                   .then(response => response.json())
                   .then(data => {
                     if (data.success) {
-                      if (onSuccess) onSuccess(data);
+                      if (onSuccess) onSuccess(data.data);
                     } else {
                       if (onFailure) onFailure(data.error);
                     }
