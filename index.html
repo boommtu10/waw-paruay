@@ -4610,8 +4610,36 @@ function openDeductModal(customerName, sourceBillId) {
   if (!winBills.length) { toast('ไม่พบข้อมูลบิลที่ถูกของ ' + customerName, 'error'); return; }
 
   // บิลทั้งหมดของลูกค้าคนนี้ในงวดนี้ (สำหรับเงื่อนไขที่ 2)
-  const allBillsRaw = window._allBillsForDeduct || [];
-  const allBills = allBillsRaw.filter(function(b) { return b.customerName === customerName; });
+ // ตัวอย่าง pseudo-code สำหรับเงื่อนไขที่ 2
+// billsOfCustomer = บิลทั้งหมดของลูกค้าคนนี้ (ดึงจาก customerBills[name])
+// winningBill     = บิลที่ถูกรางวัล (มี netTransfer จริง)
+
+const dataList = billsOfCustomer.map(function(b) {
+  if (b.billId === winningBill.billId) {
+    // บิลที่ถูก: ใช้ค่าจริงจากการคำนวณเงื่อนไขที่ 2
+    return {
+      billId: b.billId,
+      winTotal: winningBill.winTotal,
+      netTransfer: winningBill.netTransfer,   // +360 (โอนให้ลูกค้า)
+      transferAmt: winningBill.netTransfer > 0 ? winningBill.netTransfer : 0,
+      adjustedBetTotal: 0
+    };
+  } else {
+    // บิลอื่น: หักแล้ว ยอดเป็น 0 ทั้งหมด
+    return {
+      billId: b.billId,
+      winTotal: 0,
+      netTransfer: 0,   // สำคัญ: 0 = หักลบแล้ว ไม่ค้างชำระ
+      transferAmt: 0,
+      adjustedBetTotal: 0
+    };
+  }
+});
+
+// เรียก backend ด้วย dataList แทนที่จะเรียกทีละบิล
+google.script.run
+  .withSuccessHandler(function(r) { /* อัปเดต UI / reload หน้า 3 */ })
+  .savePrizeResultAllBills(dataList);
 
   // สร้าง Modal
   let modal = document.getElementById('deductModal');
