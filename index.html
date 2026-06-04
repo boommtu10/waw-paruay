@@ -2209,9 +2209,10 @@ function submitBill() {
         window._billCounter = (window._billCounter || 0) + 1;
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
-        google.script.run
-          .withSuccessHandler(function(cr) { if (cr && cr.success) window._billCounter = cr.count; })
-          .getBillCount();
+  google.script.run
+        .withSuccessHandler(function(cr) { if (cr && cr.success) window._billCounter = cr.count; })
+        .withFailureHandler(function() {})
+        .getBillCount();
         closeBillModal();
         clearCustomerForm();
       } else {
@@ -5204,47 +5205,15 @@ function escHtml(s) {
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwFoqZBHTgcc3NSipcCnMe8AXI4B366b9YzFwbdPTv3RKvZneWQw7o04IIo1CotLk2x/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
-const google = {
-  script: {
-    run: {
-      // สร้างระบบดักฟัง (Proxy) เพื่อเปลี่ยนคำสั่งเดิมให้วิ่งไปหาลิงก์ URL แทน
-      withSuccessHandler: function(onSuccess) {
-        return {
-          withFailureHandler: function(onFailure) {
-            return new Proxy({}, {
-              get: function(target, functionName) {
-                return function(...args) {
-                  // ใช้ fetch เพื่อส่งข้อมูลข้ามระบบจาก GitHub ไป Google
-                  fetch(GOOGLE_SCRIPT_URL, {
-                    method: "POST",
-                    mode: "cors",
-                    headers: {
-                      "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify({
-                      action: functionName,
-                      arguments: args
-                    })
-                  })
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.success) {
-                      if (onSuccess) onSuccess(data.data);
-                    } else {
-                      if (onFailure) onFailure(data.error);
-                    }
-                  })
-                  .catch(error => {
-                    if (onFailure) onFailure(error.message);
-                  });
-                };
-              }
-            });
-          }
-        };
-      }
+// เดิม
+google.script.run
+  .withSuccessHandler(function(r) {
+    if (r && r.success) {
+      window._billCounter = r.count;
     }
-  }
+  })
+  .withFailureHandler(function() { /* ใช้ค่า default 0 */ })
+  .getBillCount();
 };
 </script>
 </body>
