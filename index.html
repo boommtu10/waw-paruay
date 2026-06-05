@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -1053,6 +1052,10 @@
             <input type="text" id="a_name" placeholder="เช่น อาหญิง">
           </div>
           <div class="form-group">
+            <label>ชื่อย่อเจ้าที่ส่ง <span style="color:var(--gold)">(ตัวอักษร 1 ตัว เช่น A, K, F)</span></label>
+            <input type="text" id="a_shortname" placeholder="เช่น K" maxlength="3" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
+          </div>
+          <div class="form-group">
             <label>งวดวันที่ *</label>
             <input type="date" id="a_period">
           </div>
@@ -1454,6 +1457,12 @@ let currentSummaryType = 'customer';
 let summaryData = {};
 let rowCounters = { '3top':0, '2top':0, '2bot':0, '4tod':0, '5tod':0, 'runtop':0, 'runbot':0 };
 let checkPassed = false;
+// ตัวนับบิลแยกตามชื่อย่อเจ้าที่ส่ง { "K": 5, "F": 3, ... }
+if (!window._agentBillCounters) window._agentBillCounters = {};
+try {
+  const _abc = localStorage.getItem('_agentBillCounters');
+  if (_abc) window._agentBillCounters = JSON.parse(_abc);
+} catch(e) {}
 
 const TYPE_DIGITS = { '3top':3, '2top':2, '2bot':2, '4tod':4, '5tod':5, 'runtop':1, 'runbot':1 };
 const TYPE_LABELS = {
@@ -1508,7 +1517,7 @@ function renderAgentList() {
     <div class="agent-card">
       <div class="agent-card-header">
         <div>
-          <div class="agent-card-name">🏢 ${a.name}</div>
+          <div class="agent-card-name">🏢 ${a.name}${a.shortName ? ` <span style="background:rgba(245,197,24,0.2);color:var(--gold);border:1px solid rgba(245,197,24,0.4);border-radius:6px;padding:1px 8px;font-size:13px;font-family:'Kanit',sans-serif;">${a.shortName}</span>` : ''}</div>
           <div class="agent-card-period">📅 งวด ${a.period}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
@@ -1569,6 +1578,10 @@ function openEditAgentModal(agentId) {
         <div class="form-group">
           <label>ชื่อเจ้าที่ส่ง *</label>
           <input type="text" id="em_name" value="${escHtml(agent.name)}">
+        </div>
+        <div class="form-group">
+          <label>ชื่อย่อ (เช่น K, F)</label>
+          <input type="text" id="em_shortname" value="${escHtml(agent.shortName || '')}" maxlength="3" style="text-transform:uppercase;" oninput="this.value=this.value.toUpperCase()">
         </div>
         <div class="form-group">
           <label>งวดวันที่ *</label>
@@ -1641,6 +1654,7 @@ function saveEditAgent() {
   const data = {
     name,
     period,
+    shortName: (document.getElementById('em_shortname')?.value?.trim()?.toUpperCase() || ''),
     pay3straight: +document.getElementById('em_p3s').value || 0,
     pay3tod:      +document.getElementById('em_p3t').value || 0,
     pay2top:      +document.getElementById('em_p2t').value || 0,
@@ -1781,6 +1795,7 @@ function saveAgent() {
   }
   const data = {
     name, period,
+    shortName: (document.getElementById('a_shortname').value.trim().toUpperCase() || ''),
     pay3straight: +document.getElementById('a_p3s').value || 0,
     pay3tod: +document.getElementById('a_p3t').value || 0,
     pay2top: +document.getElementById('a_p2t').value || 0,
@@ -1799,7 +1814,7 @@ function saveAgent() {
         toast('บันทึกเจ้าที่ส่งสำเร็จ ✓', 'success');
         bannedNumbers = [];
         renderBannedList();
-        ['a_name','a_period','a_p3s','a_p3t','a_p2t','a_p2b','a_p4t','a_p5t','a_prt','a_prb','a_pct','a_pctrun'].forEach(function(fid){ document.getElementById(fid).value = ''; });
+        ['a_name','a_shortname','a_period','a_p3s','a_p3t','a_p2t','a_p2b','a_p4t','a_p5t','a_prt','a_prb','a_pct','a_pctrun'].forEach(function(fid){ document.getElementById(fid).value = ''; });
         setTimeout(loadAgents, 500);
       } else {
         toast('บันทึกล้มเหลว: ' + (r ? r.error : 'ไม่ทราบสาเหตุ'), 'error');
@@ -2096,7 +2111,12 @@ function showBillPreview() {
   Object.keys(agentGroups).forEach(agentName => {
     const items = agentGroups[agentName];
     let agentTotal = 0;
-    html += `<span class="agent-section">▶ ${agentName}</span>\n`;
+    // หาชื่อย่อและเลขบิลของเจ้านี้
+    const agentObj = agents.find(function(a){ return a.name === agentName; });
+    const sn = agentObj && agentObj.shortName ? agentObj.shortName : '';
+    const agentBillNum = sn ? ((window._agentBillCounters[sn] || 0) + 1) : '';
+    const agentLabel = sn ? `${agentName}(${sn}${agentBillNum})` : agentName;
+    html += `<span class="agent-section">▶ ${agentLabel}</span>\n`;
 
     // Group by type for display
     const byType = {};
@@ -2219,6 +2239,18 @@ function submitBill() {
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '✅ บันทึก'; }
       if (r && r.success) {
         window._billCounter = (window._billCounter || 0) + 1;
+        // อัปเดตตัวนับบิลแยกตามชื่อย่อเจ้าที่ส่ง
+        const bd2 = window._pendingBillData;
+        if (bd2 && bd2.agentGroups) {
+          Object.keys(bd2.agentGroups).forEach(function(agentName) {
+            const agObj = agents.find(function(a){ return a.name === agentName; });
+            const sn = agObj && agObj.shortName ? agObj.shortName : '';
+            if (sn) {
+              window._agentBillCounters[sn] = (window._agentBillCounters[sn] || 0) + 1;
+            }
+          });
+          try { localStorage.setItem('_agentBillCounters', JSON.stringify(window._agentBillCounters)); } catch(e) {}
+        }
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
         google.script.run
@@ -2282,24 +2314,7 @@ function loadSummary() {
         console.warn('getAllSummary fail:', r);
         toast('โหลดสรุปล้มเหลว: ' + (r ? r.error : 'ไม่ทราบสาเหตุ'), 'error');
       }
-      // โหลดยอดชำระจาก Sheet มาอัปเดต _custPaymentStatus
-      google.script.run
-        .withSuccessHandler(function(pr) {
-          if (pr && pr.success && pr.payments) {
-            if (!window._custPaymentStatus) window._custPaymentStatus = {};
-            Object.keys(pr.payments).forEach(function(cname) {
-              if (pr.payments[cname] > 0) {
-                window._custPaymentStatus[cname] = 'paid';
-              }
-            });
-            try { localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus)); } catch(e) {}
-          }
-          renderSummary();
-        })
-        .withFailureHandler(function() {
-          renderSummary(); // ถ้าโหลด payment ล้มเหลว ยังแสดงข้อมูลหลักได้
-        })
-        .getCustomerPayments(period || '');
+      renderSummary();
     })
     .withFailureHandler(function(e) {
       console.error('getAllSummary error:', e);
@@ -2717,7 +2732,6 @@ function renderSummary() {
 
 function clearPrizePage() {
   window._prizeChecked = false;  // reset — อนุญาตลบบิลได้อีกครั้ง
-  window._custPaymentStatus = {}; // reset payment status ใน memory ด้วย
   // ลบค่าที่จำไว้ใน localStorage ด้วย เพราะเริ่มงวดใหม่
   try { localStorage.removeItem('_prizeChecked'); localStorage.removeItem('_savedBillIds'); localStorage.removeItem('_prizeBillResults'); localStorage.removeItem('_custPaymentStatus'); } catch(e) {}
   ['prize_period','prize_3','prize_2top','prize_2bot','prize_4','prize_5'].forEach(id => {
@@ -4100,6 +4114,20 @@ function confirmClearAllData() {
       if (r && r.success) {
         toast('✅ ล้างข้อมูลบิลเรียบร้อยแล้ว พร้อมเริ่มงวดใหม่ (ข้อมูลเจ้าที่ส่งยังคงอยู่)', 'success');
         summaryData = {};
+        // reset ตัวนับบิลทั้งหมด — เริ่มงวดใหม่
+        window._billCounter = 0;
+        window._agentBillCounters = {};
+        window._custPaymentStatus = {};
+        window._savedBillIds = new Set();
+        window._prizeBillResults = [];
+        window._prizeChecked = false;
+        try {
+          localStorage.removeItem('_agentBillCounters');
+          localStorage.removeItem('_custPaymentStatus');
+          localStorage.removeItem('_savedBillIds');
+          localStorage.removeItem('_prizeBillResults');
+          localStorage.removeItem('_prizeChecked');
+        } catch(e) {}
         // ไม่ reset agents — ราคาจ่ายยังเหมือนเดิม ไม่ต้องกรอกใหม่
       } else {
         toast('ล้างข้อมูลล้มเหลว: ' + (r ? r.error : '?'), 'error');
@@ -4125,7 +4153,7 @@ function filterSummarySearch() {
 
 
 window.addEventListener('DOMContentLoaded', function() {
-  // โหลดค่าที่จำไว้จาก localStorage กลับมา (fallback ถ้า Sheet ยังไม่โหลด)
+  // โหลดค่าที่จำไว้จาก localStorage กลับมา
   try {
     if (localStorage.getItem('_prizeChecked') === '1') {
       window._prizeChecked = true;
@@ -4155,22 +4183,6 @@ window.addEventListener('DOMContentLoaded', function() {
       })
       .withFailureHandler(function() { /* ใช้ค่า default 0 */ })
       .getBillCount();
-
-    // โหลดยอดชำระจาก Sheet ทันทีตอนเปิดแอป (sync กับ Sheet จริง)
-    google.script.run
-      .withSuccessHandler(function(r) {
-        if (r && r.success && r.payments) {
-          if (!window._custPaymentStatus) window._custPaymentStatus = {};
-          Object.keys(r.payments).forEach(function(cname) {
-            if (r.payments[cname] > 0) {
-              window._custPaymentStatus[cname] = 'paid';
-            }
-          });
-          try { localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus)); } catch(e) {}
-        }
-      })
-      .withFailureHandler(function() { /* ใช้ค่า localStorage เดิม */ })
-      .getCustomerPayments('');
   }, 300);
 });
 // ==================== PAGE 5: สถิติ ====================
@@ -4866,10 +4878,18 @@ function exportBillImages() {
   Object.keys(bd.agentGroups).forEach(function(agentName) {
     const items = bd.agentGroups[agentName];
 
+    // หาชื่อย่อและเลขบิลของเจ้านี้
+    const agentObj = agents.find(function(a){ return a.name === agentName; });
+    const sn = agentObj && agentObj.shortName ? agentObj.shortName : '';
+    const agentBillNum = sn ? ((window._agentBillCounters[sn] || 0) + 1) : billNum;
+    const agentCode = sn ? `${sn}${agentBillNum}` : '';
+
     // รวบรวมบรรทัดข้อความ
     const lines = [];
     lines.push({ text: 'บิลที่ ' + billNum + '  |  งวด ' + bd.period, style: 'header' });
-    lines.push({ text: 'ลูกค้า: ' + bd.customerName, style: 'subheader' });
+    // แสดง "ลูกค้า: test (K1)" ถ้ามีชื่อย่อ
+    const custLabel = agentCode ? `ลูกค้า: ${bd.customerName} (${agentCode})` : `ลูกค้า: ${bd.customerName}`;
+    lines.push({ text: custLabel, style: 'subheader' });
     lines.push({ text: '', style: 'spacer' });
 
     const byType = {};
@@ -5006,7 +5026,8 @@ function exportBillImages() {
 
     // Download
     const link = document.createElement('a');
-    link.download = 'bill_' + bd.period.replace(/\//g,'-') + '_' + bd.customerName + '_' + agentName + '.png';
+    const fileCode = agentCode ? `_${agentCode}` : `_${agentName}`;
+    link.download = 'bill_' + bd.period.replace(/\//g,'-') + '_' + bd.customerName + fileCode + '.png';
     link.href = canvas.toDataURL('image/png');
     link.click();
   });
@@ -5459,56 +5480,11 @@ if (!window._custPaymentStatus) window._custPaymentStatus = {};
 
 function markCustPaid(custName) {
   if (!window._custPaymentStatus) window._custPaymentStatus = {};
-
-  // คำนวณยอดที่ลูกค้าต้องชำระ (netPayable) จากข้อมูลที่มีอยู่
-  const billsData = summaryData['customerBills'] || {};
-  const cBills = billsData[custName] || [];
-  const savedIds = window._savedBillIds || new Set();
-  const pm = {};
-  cBills.forEach(function(b) {
-    if (b.netTransfer !== null && b.netTransfer !== undefined) {
-      pm[b.billId] = { netTransfer: b.netTransfer };
-    }
-  });
-  (window._prizeBillResults || []).forEach(function(pr) {
-    if (savedIds.has(pr.billId)) pm[pr.billId] = { netTransfer: pr.netTransfer };
-  });
-  let netPayable = 0;
-  cBills.forEach(function(b) {
-    const pr = pm[b.billId];
-    const adj = (window._billTotalAdjust || {})[b.billId] || 0;
-    if (pr) { netPayable += pr.netTransfer >= 0 ? 0 : Math.abs(pr.netTransfer); }
-    else { netPayable += Math.max(0, (b.total || 0) - adj); }
-  });
-
-  // บันทึก state ใน memory + localStorage ทันที (UI ไม่รอ server)
   window._custPaymentStatus[custName] = 'paid';
+  // จำสถานะไว้ใน localStorage ด้วย เพื่อรองรับ reload
   try { localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus)); } catch(e) {}
   renderSummary();
   toast('บันทึกยอดชำระของ ' + custName + ' แล้ว', 'success');
-
-  // หา period จาก filter bar
-  const rawDate = document.getElementById('f_period')?.value?.trim() || '';
-  let period = '';
-  if (rawDate) {
-    const parts = rawDate.split('-');
-    if (parts.length === 3) {
-      const beY = String(parseInt(parts[0]) + 543).slice(-2);
-      period = parts[2] + '/' + parts[1] + '/' + beY;
-    }
-  }
-
-  // บันทึกลง Google Sheet (background)
-  google.script.run
-    .withSuccessHandler(function(r) {
-      if (!r || !r.success) {
-        console.warn('saveCustomerPayment failed:', r ? r.error : '?');
-      }
-    })
-    .withFailureHandler(function(e) {
-      console.warn('saveCustomerPayment error:', e);
-    })
-    .saveCustomerPayment({ customerName: custName, paidAmount: netPayable, period: period });
 }
 
 function escHtml(s) {
