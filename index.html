@@ -4655,8 +4655,8 @@ function parseAndFill() {
     const lower = line.toLowerCase().replace(/\s+/g, ' ').trim();
 
     // --- ตรวจ context keyword ---
-    // "บน-ล่าง" หรือ "บ+ล" = ซื้อทั้ง 3ตัวบน + 2ตัวบน + 2ตัวล่าง
-    if (/^บน[-\s]*ล่าง$/.test(lower) || /^บ\s*[+&]\s*ล$/.test(lower)) { ctx = 'both3'; log.push('📌 context → บน-ล่าง (3ตัวบน+2ตัวบน+2ตัวล่าง)'); return; }
+    // "บน-ล่าง" หรือ "บ+ล" = ซื้อทั้ง 2ตัวบน + 2ตัวล่าง
+    if (/^บน[-\s]*ล่าง$/.test(lower) || /^บ\s*[+&]\s*ล$/.test(lower)) { ctx = '2both'; log.push('📌 context → บน-ล่าง (2ตัวบน+2ตัวล่าง)'); return; }
     // "บน ล่าง" หรือ "บน,ล่าง" = 2 ตัวบน + ล่างพร้อมกัน
     if (/^บน[\s,،]*ล่าง$/.test(lower) || /^ล่าง[\s,،]*บน$/.test(lower)) { ctx = '2both'; log.push('📌 context → บน+ล่าง (2 ตัว)'); return; }
     // "บน" ลำพัง (ไม่มี ล่าง ตามมา)
