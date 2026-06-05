@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2281,7 +2282,24 @@ function loadSummary() {
         console.warn('getAllSummary fail:', r);
         toast('โหลดสรุปล้มเหลว: ' + (r ? r.error : 'ไม่ทราบสาเหตุ'), 'error');
       }
-      renderSummary();
+      // โหลดยอดชำระจาก Sheet มาอัปเดต _custPaymentStatus
+      google.script.run
+        .withSuccessHandler(function(pr) {
+          if (pr && pr.success && pr.payments) {
+            if (!window._custPaymentStatus) window._custPaymentStatus = {};
+            Object.keys(pr.payments).forEach(function(cname) {
+              if (pr.payments[cname] > 0) {
+                window._custPaymentStatus[cname] = 'paid';
+              }
+            });
+            try { localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus)); } catch(e) {}
+          }
+          renderSummary();
+        })
+        .withFailureHandler(function() {
+          renderSummary(); // ถ้าโหลด payment ล้มเหลว ยังแสดงข้อมูลหลักได้
+        })
+        .getCustomerPayments(period || '');
     })
     .withFailureHandler(function(e) {
       console.error('getAllSummary error:', e);
@@ -2699,6 +2717,7 @@ function renderSummary() {
 
 function clearPrizePage() {
   window._prizeChecked = false;  // reset — อนุญาตลบบิลได้อีกครั้ง
+  window._custPaymentStatus = {}; // reset payment status ใน memory ด้วย
   // ลบค่าที่จำไว้ใน localStorage ด้วย เพราะเริ่มงวดใหม่
   try { localStorage.removeItem('_prizeChecked'); localStorage.removeItem('_savedBillIds'); localStorage.removeItem('_prizeBillResults'); localStorage.removeItem('_custPaymentStatus'); } catch(e) {}
   ['prize_period','prize_3','prize_2top','prize_2bot','prize_4','prize_5'].forEach(id => {
@@ -4106,7 +4125,7 @@ function filterSummarySearch() {
 
 
 window.addEventListener('DOMContentLoaded', function() {
-  // โหลดค่าที่จำไว้จาก localStorage กลับมา
+  // โหลดค่าที่จำไว้จาก localStorage กลับมา (fallback ถ้า Sheet ยังไม่โหลด)
   try {
     if (localStorage.getItem('_prizeChecked') === '1') {
       window._prizeChecked = true;
@@ -4136,6 +4155,22 @@ window.addEventListener('DOMContentLoaded', function() {
       })
       .withFailureHandler(function() { /* ใช้ค่า default 0 */ })
       .getBillCount();
+
+    // โหลดยอดชำระจาก Sheet ทันทีตอนเปิดแอป (sync กับ Sheet จริง)
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r && r.success && r.payments) {
+          if (!window._custPaymentStatus) window._custPaymentStatus = {};
+          Object.keys(r.payments).forEach(function(cname) {
+            if (r.payments[cname] > 0) {
+              window._custPaymentStatus[cname] = 'paid';
+            }
+          });
+          try { localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus)); } catch(e) {}
+        }
+      })
+      .withFailureHandler(function() { /* ใช้ค่า localStorage เดิม */ })
+      .getCustomerPayments('');
   }, 300);
 });
 // ==================== PAGE 5: สถิติ ====================
@@ -5424,11 +5459,56 @@ if (!window._custPaymentStatus) window._custPaymentStatus = {};
 
 function markCustPaid(custName) {
   if (!window._custPaymentStatus) window._custPaymentStatus = {};
+
+  // คำนวณยอดที่ลูกค้าต้องชำระ (netPayable) จากข้อมูลที่มีอยู่
+  const billsData = summaryData['customerBills'] || {};
+  const cBills = billsData[custName] || [];
+  const savedIds = window._savedBillIds || new Set();
+  const pm = {};
+  cBills.forEach(function(b) {
+    if (b.netTransfer !== null && b.netTransfer !== undefined) {
+      pm[b.billId] = { netTransfer: b.netTransfer };
+    }
+  });
+  (window._prizeBillResults || []).forEach(function(pr) {
+    if (savedIds.has(pr.billId)) pm[pr.billId] = { netTransfer: pr.netTransfer };
+  });
+  let netPayable = 0;
+  cBills.forEach(function(b) {
+    const pr = pm[b.billId];
+    const adj = (window._billTotalAdjust || {})[b.billId] || 0;
+    if (pr) { netPayable += pr.netTransfer >= 0 ? 0 : Math.abs(pr.netTransfer); }
+    else { netPayable += Math.max(0, (b.total || 0) - adj); }
+  });
+
+  // บันทึก state ใน memory + localStorage ทันที (UI ไม่รอ server)
   window._custPaymentStatus[custName] = 'paid';
-  // จำสถานะไว้ใน localStorage ด้วย เพื่อรองรับ reload
   try { localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus)); } catch(e) {}
   renderSummary();
   toast('บันทึกยอดชำระของ ' + custName + ' แล้ว', 'success');
+
+  // หา period จาก filter bar
+  const rawDate = document.getElementById('f_period')?.value?.trim() || '';
+  let period = '';
+  if (rawDate) {
+    const parts = rawDate.split('-');
+    if (parts.length === 3) {
+      const beY = String(parseInt(parts[0]) + 543).slice(-2);
+      period = parts[2] + '/' + parts[1] + '/' + beY;
+    }
+  }
+
+  // บันทึกลง Google Sheet (background)
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (!r || !r.success) {
+        console.warn('saveCustomerPayment failed:', r ? r.error : '?');
+      }
+    })
+    .withFailureHandler(function(e) {
+      console.warn('saveCustomerPayment error:', e);
+    })
+    .saveCustomerPayment({ customerName: custName, paidAmount: netPayable, period: period });
 }
 
 function escHtml(s) {
