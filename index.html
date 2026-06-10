@@ -1274,13 +1274,13 @@
       <button class="btn btn-gold" onclick="loadSummary()" style="height:38px;padding:0 14px;font-size:13px;white-space:nowrap;flex-shrink:0;">🔄 โหลดสรุป</button>
     </div>
 
-    <!-- tabs 2x3 -->
+    <!-- tabs 2x2 + ตัวแทน -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
       <button class="summary-tab active" onclick="switchSummary('customer',this)">👥 แยกตามลูกค้า</button>
       <button class="summary-tab" onclick="switchSummary('agent',this)">🏢 แยกตามเจ้าที่ส่ง</button>
       <button class="summary-tab" onclick="switchSummary('all',this)">📊 สรุปทั้งหมด</button>
       <button class="summary-tab" onclick="switchSummary('profit',this)">💰 สรุปกำไร</button>
-      <button class="summary-tab" onclick="switchSummary('commission',this)" style="grid-column:1/-1;">🤝 ตัวแทน (ค่าขนม)</button>
+      <button class="summary-tab" onclick="switchSummary('commission',this)" style="grid-column:1/-1;background:rgba(159,122,234,0.15);color:var(--purple);border:1px solid rgba(159,122,234,0.4);">🤝 ตัวแทน (ค่าขนม)</button>
     </div>
   </div>
 
@@ -2338,7 +2338,7 @@ function loadSummary() {
         console.warn('getAllSummary fail:', r);
         toast('โหลดสรุปล้มเหลว: ' + (r ? r.error : 'ไม่ทราบสาเหตุ'), 'error');
       }
-      // โหลด commission ข้ามเครื่องพร้อมกัน
+      // sync commission จาก server ทุกครั้งที่โหลดสรุป แล้วค่อย render
       loadAgentCommission(function() { renderSummary(); });
     })
     .withFailureHandler(function(e) {
@@ -2450,18 +2450,6 @@ function renderSummary() {
         else { netPayable += Math.max(0, (b.total || 0) - _adjN); }
       });
 
-      // ===== ถ้ามี commission บันทึกไว้ ให้ใช้ยอดหลังหัก % แทน =====
-      const period = getPeriodLabel();
-      const commResult = getCommissionNetForCustomer(name, period);
-      const hasCommission = commResult.hasCommission;
-      let commDeduct = 0;
-      if (hasCommission && commResult.rows && commResult.rows.length) {
-        // รวมยอดหัก % ทุกแถว
-        commDeduct = commResult.rows.reduce(function(s,r){ return s+(r.deduct||0); }, 0);
-        // ใช้ netPayable จาก commission แทน
-        netPayable = commResult.netPayable;
-      }
-
       // ถ้ากดปุ่ม "รอชำระ" แล้ว → แสดงยอดเป็น 0
       const custPayStatus = (window._custPaymentStatus || {})[name];
       const autoCleared = hasPrize && netPayable === 0;
@@ -2538,8 +2526,8 @@ function renderSummary() {
       }).join('');
 
       const headerColor = hasPrize ? (netPayable === 0 ? 'var(--green)' : netPayable < total ? 'var(--green)' : 'var(--gold)') : 'var(--gold)';
-      const headerLabel = hasCommission ? 'ยอดหลังหักค่าขนม' : (hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม');
-      const subLine = (hasCommission || (hasPrize && netPayable < total)) ? `<div style="font-size:10px;color:var(--text2);">${hasCommission && commDeduct > 0 ? 'หัก ' + commDeduct.toLocaleString('th-TH') + ' ฿' : 'ยอดแทง ' + total.toLocaleString('th-TH') + ' ฿'}</div>` : '';
+      const headerLabel = hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม';
+      const subLine = hasPrize && netPayable < total ? `<div style="font-size:10px;color:var(--text2);">ยอดแทง ${total.toLocaleString('th-TH')} ฿</div>` : '';
 
       // ===== ปุ่ม รอชำระ / ชำระแล้ว =====
       // prizeWasSaved = true ถ้าเคยบันทึกผลรางวัลไปแล้ว (memory หรือ Sheet)
@@ -3340,6 +3328,7 @@ function getNotifyAmountForCustomer(name) {
   const prizeMap = {};
   bills.forEach(function(b) {
     if (b.netTransfer !== null && b.netTransfer !== undefined) {
+      // ใช้ winTotal จากชีตโดยตรงถ้ามี (ถูกต้องกว่าการคำนวณกลับจาก netTransfer)
       const computedWin = b.winTotal !== null && b.winTotal !== undefined ? b.winTotal : (b.netTransfer || 0) + (b.total || 0);
       prizeMap[b.billId] = { billId: b.billId, winTotal: computedWin, netTransfer: b.netTransfer };
     }
@@ -3357,14 +3346,7 @@ function getNotifyAmountForCustomer(name) {
     else { netPayable += (b.total || 0); }
   });
 
-  const baseAmt = hasPrize ? netPayable : total;
-
-  // ===== ถ้ามี commission ให้ใช้ยอดหลังหัก % =====
-  const period = getPeriodLabel();
-  const commResult = getCommissionNetForCustomer(name, period);
-  if (commResult.hasCommission) return commResult.netPayable;
-
-  return baseAmt;
+  return hasPrize ? netPayable : total;
 }
 
 function getPeriodLabel() {
@@ -3421,41 +3403,6 @@ async function exportAllNotifyImages() {
 }
 
 function buildNotifyWrapper(name, amount, period, info, text) {
-  // ตรวจว่ามี commission ไหม
-  const commResult = getCommissionNetForCustomer(name, period);
-  const hasComm    = commResult.hasCommission && commResult.rows && commResult.rows.length > 0;
-  const grossAmt   = hasComm
-    ? commResult.rows.reduce(function(s,r){ return s+(r.total||0); }, 0)
-    : amount;
-  const deductAmt  = hasComm
-    ? commResult.rows.reduce(function(s,r){ return s+(r.deduct||0); }, 0)
-    : 0;
-  const netAmt     = hasComm ? commResult.netPayable : amount;
-
-  // สร้าง block ยอดที่ต้องชำระ
-  let amountBlockInner = '';
-  if (hasComm && deductAmt > 0) {
-    amountBlockInner = `
-      <div style="font-size:13px;color:#888;margin-bottom:8px;">ยอดที่ต้องชำระ</div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0;">
-        <span style="font-size:14px;color:#aaa;">ยอดรวม</span>
-        <span style="font-family:'Kanit',sans-serif;font-size:16px;font-weight:700;color:#e0e0e0;">${grossAmt.toLocaleString('th-TH')} บาท</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0;">
-        <span style="font-size:14px;color:#39d98a;font-weight:700;">ค่าขนม</span>
-        <span style="font-family:'Kanit',sans-serif;font-size:16px;font-weight:700;color:#39d98a;">${deductAmt.toLocaleString('th-TH')} บาท</span>
-      </div>
-      <div style="border-top:1px dashed #2e2e50;margin:6px 0;"></div>
-      <div style="display:flex;justify-content:space-between;padding:4px 0;">
-        <span style="font-size:14px;color:#f5c518;font-weight:700;">ยอดชำระจริง</span>
-        <span style="font-family:'Kanit',sans-serif;font-size:28px;font-weight:900;color:#f5c518;">${netAmt.toLocaleString('th-TH')} บาท</span>
-      </div>`;
-  } else {
-    amountBlockInner = `
-      <div style="font-size:13px;color:#888;margin-bottom:6px;">ยอดที่ต้องชำระ</div>
-      <div style="font-family:'Kanit',sans-serif;font-size:36px;font-weight:900;color:#ff4d6d;">${amount.toLocaleString('th-TH')} บาท</div>`;
-  }
-
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
@@ -3472,7 +3419,8 @@ function buildNotifyWrapper(name, amount, period, info, text) {
     <div style="font-size:22px;font-weight:900;color:#f5c518;margin-bottom:4px;">${name}</div>
     <div style="font-size:13px;color:#888;margin-bottom:18px;">งวดวันที่ ${period}</div>
     <div style="background:#1c1c2e;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #2e2e50;">
-      ${amountBlockInner}
+      <div style="font-size:13px;color:#888;margin-bottom:6px;">ยอดที่ต้องชำระ</div>
+      <div style="font-family:'Kanit',sans-serif;font-size:36px;font-weight:900;color:#ff4d6d;">${amount.toLocaleString('th-TH')} บาท</div>
     </div>
     <div style="background:#1c1c2e;border-radius:10px;padding:16px;border:1px solid #2e2e50;line-height:1.9;">
       <div style="font-size:12px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">ข้อมูลบัญชี</div>
@@ -4270,10 +4218,10 @@ window.addEventListener('DOMContentLoaded', function() {
     if (custTransferRaw) {
       window._custTransferType = JSON.parse(custTransferRaw);
     }
-    // โหลด commission จาก localStorage ก่อน (เร็ว)
-    const commRaw = localStorage.getItem('_agentCommission');
+    // โหลด commission จาก localStorage ก่อน (เร็ว ไม่รอ server)
+    const commRaw = localStorage.getItem('_commData');
     if (commRaw) {
-      window._agentCommissionFromServer = JSON.parse(commRaw);
+      window._commData = JSON.parse(commRaw);
     }
   } catch(e) {}
 
@@ -4288,7 +4236,7 @@ window.addEventListener('DOMContentLoaded', function() {
       })
       .withFailureHandler(function() { /* ใช้ค่า default 0 */ })
       .getBillCount();
-    // โหลด commission จาก server (sync ข้ามเครื่อง)
+    // sync commission จาก server (ข้ามเครื่อง)
     loadAgentCommission(null);
   }, 300);
 });
@@ -5719,375 +5667,266 @@ function confirmRefundCust(custName) {
   markCustUnpaid(custName);
 }
 
-// ==================== ตัวแทน (Commission) ====================
-// เก็บ state หน้า commission ไว้ใน window
-window._commissionData = window._commissionData || {};  // { agentName: [ {pct, deduct, netPayable} ] }
-window._agentCommissionFromServer = window._agentCommissionFromServer || {}; // โหลดจาก server
+// ==================== ตัวแทน (Commission / ค่าขนม) ====================
+// State: { "period::custName": [ {agentName, billCount, total, pct, deduct, netPayable}, ... ] }
+// key = period + "::" + custName  เพื่อแยกได้ทุกงวด
+window._commData = window._commData || {};   // state ใน session ปัจจุบัน
 
+// ---- helpers ----
+function _commKey(custName) {
+  return getPeriodLabel() + '::' + custName;
+}
+
+function _recalcRows(rows) {
+  rows.forEach(function(r) {
+    r.deduct     = Math.round((r.total || 0) * (r.pct || 0) / 100);
+    r.netPayable = (r.total || 0) - r.deduct;
+  });
+  return rows;
+}
+
+// โหลดจาก server แล้วเก็บใน window._commData
+function loadAgentCommission(cb) {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.data) {
+        window._commData = res.data;
+        try { localStorage.setItem('_commData', JSON.stringify(res.data)); } catch(e) {}
+      }
+      if (cb) cb();
+    })
+    .withFailureHandler(function(e) {
+      console.error('loadAgentCommission error:', e);
+      if (cb) cb();
+    })
+    .getAgentCommission();
+}
+
+// บันทึก key เดียวขึ้น server (ใช้หลัง save/ลบ)
+function _pushCommKey(key, rows) {
+  // rows = null หมายถึงลบ
+  google.script.run
+    .withSuccessHandler(function() {})
+    .withFailureHandler(function(e) { console.error('saveAgentCommission error:', e); })
+    .saveAgentCommission(key, rows);
+}
+
+// ---- render หน้า commission ----
 function renderCommissionTab() {
   const el = document.getElementById('summaryContent');
-  const custData   = summaryData['customer'] || {};
-  const billsData  = summaryData['customerBills'] || {};
-  const period     = getPeriodLabel();
+
+  // ต้องโหลดสรุปก่อน
+  const custData  = summaryData['customer'] || {};
+  const agentData = summaryData['agent']    || {};
   const custNames  = Object.keys(custData);
-
-  // โหลด commission ที่บันทึกไว้สำหรับงวดนี้
-  const savedComm  = ((window._agentCommissionFromServer || {})[period]) || {};
-
-  // ===== Restore จาก server data ถ้า _commissionData ว่างอยู่ =====
-  // รีเซ็ต _commissionData ถ้างวดเปลี่ยน
-  if (window._commissionPeriod && window._commissionPeriod !== period) {
-    window._commissionData = {};
-  }
-  window._commissionPeriod = period;
-
-  if (!Object.keys(window._commissionData).length && Object.keys(savedComm).length) {
-    Object.keys(savedComm).forEach(function(agName) {
-      const d = savedComm[agName];
-      if (d && d.rows && d.rows.length) {
-        window._commissionData[agName] = d.rows.map(function(r) {
-          return {
-            billCount:  r.billCount  || 0,
-            total:      r.total      || 0,
-            dealer:     r.dealer     || '',
-            pct:        r.pct        || 0,
-            deduct:     r.deduct     || 0,
-            netPayable: r.netPayable || 0
-          };
-        });
-      }
-    });
-  }
+  const agentNames = Object.keys(agentData);
+  const period     = getPeriodLabel();
 
   if (!custNames.length) {
-    el.innerHTML = '<div class="text-muted text-sm">กรุณาโหลดสรุปก่อน</div>';
+    el.innerHTML = '<div class="text-muted text-sm">กรุณากด "โหลดสรุป" ก่อน</div>';
     return;
   }
 
-  // รวบรวมชื่อเจ้าที่ส่งทั้งหมดจากบิล
-  const dealerSet = new Set();
-  Object.keys(billsData).forEach(function(cn) {
-    (billsData[cn] || []).forEach(function(b) {
-      (b.items || []).forEach(function(it) { if (it.agentName) dealerSet.add(it.agentName); });
-    });
-  });
-  const dealerNames = Array.from(dealerSet).sort();
+  // datalist
+  const dlCust  = `<datalist id="dl_comm_cust">${custNames.map(n=>`<option value="${escHtml(n)}">`).join('')}</datalist>`;
+  const dlAgent = `<datalist id="dl_comm_agent">${agentNames.map(n=>`<option value="${escHtml(n)}">`).join('')}</datalist>`;
 
-  // ===== datalist สำหรับ autocomplete =====
-  const dlHtml = `<datalist id="comm_agent_list">${custNames.map(n=>`<option value="${escHtml(n)}">`).join('')}</datalist>`;
-  const dealerDlHtml = `<datalist id="comm_dealer_list">${dealerNames.map(n=>`<option value="${escHtml(n)}">`).join('')}</datalist>`;
-
-  // restore ค่าที่กรอกไว้ก่อน re-render
-  const prevAgent  = window._commSearchVal  || '';
-  const prevDealer = window._commDealerVal  || '';
-
-  // ===== ส่วนค้นหา + เพิ่ม =====
+  // ---- ส่วนค้นหา + เพิ่ม ----
   const searchBar = `
     <div class="summary-card" style="margin-bottom:12px;">
-      <div class="card-title" style="margin-bottom:10px;">🤝 ตัวแทน — หักค่าขนม (%)</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">ค้นหาชื่อลูกค้าที่เป็นตัวแทน แล้วเลือกเจ้าที่ส่ง แล้วกดเพิ่มเพื่อตั้งค่า % ค่าขนม</div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="comm_search" list="comm_agent_list" placeholder="🔍 ค้นหาชื่อตัวแทน..." value="${escHtml(prevAgent)}"
-          style="flex:2;min-width:140px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);"
-          oninput="window._commSearchVal=this.value">
-        ${dlHtml}
-        <input type="text" id="comm_dealer" list="comm_dealer_list" placeholder="🏢 เจ้าที่ส่ง..." value="${escHtml(prevDealer)}"
-          style="flex:2;min-width:130px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);"
-          oninput="window._commDealerVal=this.value">
-        ${dealerDlHtml}
-        <button class="btn btn-gold" onclick="addCommissionAgent()" style="white-space:nowrap;height:38px;padding:0 14px;font-size:13px;">+ เพิ่ม</button>
+      <div class="card-title" style="margin-bottom:10px;color:var(--purple);">🤝 ตัวแทน — หักค่าขนม (%)</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">เลือกชื่อตัวแทน (จากรายชื่อลูกค้า) และเจ้าที่ส่ง แล้วกด + เพิ่ม</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        ${dlCust}${dlAgent}
+        <input id="comm_cust_input" list="dl_comm_cust" placeholder="ชื่อตัวแทน (ลูกค้า)"
+          style="flex:1;min-width:120px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
+        <input id="comm_agent_input" list="dl_comm_agent" placeholder="เจ้าที่ส่ง"
+          style="flex:1;min-width:120px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
+        <button class="btn btn-gold" onclick="addCommissionRow()" style="height:38px;padding:0 14px;font-size:13px;white-space:nowrap;">+ เพิ่ม</button>
       </div>
     </div>`;
 
-  // ===== ตาราง agent ที่เพิ่มแล้ว =====
-  const rows = Object.keys(window._commissionData);
+  // ---- ตารางรายการ ----
+  const key = period;   // เราจะ key by "period::custName" ใน _commData แต่ render รวมทุก key ของงวดนี้
+  const periodKeys = Object.keys(window._commData).filter(function(k){ return k.startsWith(period + '::'); });
+
   let tableHtml = '';
-
-  if (rows.length === 0) {
-    tableHtml = '<div class="text-muted text-sm" style="margin-bottom:12px;">ยังไม่ได้เพิ่มตัวแทน</div>';
+  if (!periodKeys.length) {
+    tableHtml = '<div class="text-muted text-sm" style="margin-bottom:12px;">ยังไม่มีรายการ — กดเพิ่มได้เลย</div>';
   } else {
-    // สร้างแถวตาราง
-    let grandBills = 0, grandTotal = 0, grandDeduct = 0, grandNet = 0;
-    const rowsHtml = rows.map(function(agentName) {
-      const entries = window._commissionData[agentName] || [];
+    let grandBill=0, grandTotal=0, grandDeduct=0, grandNet=0;
+    let rowsHtml = '';
 
-      let rowsInner = '';
-      let subBills = 0, subTotal = 0, subDeduct = 0, subNet = 0;
+    periodKeys.forEach(function(k) {
+      const rows = window._commData[k] || [];
+      _recalcRows(rows);
+      const custName = k.split('::').slice(1).join('::');
 
-      // สร้าง entries เริ่มต้นถ้ายังไม่มี
-      if (!entries.length) {
-        const agBills = billsData[agentName] || [];
-        const agTotal = agBills.reduce(function(s,b){ return s + (b.total||0); }, 0);
-        window._commissionData[agentName] = [{
-          billCount: agBills.length,
-          total: agTotal,
-          dealer: '',
-          pct: 0,
-          deduct: 0,
-          netPayable: agTotal
-        }];
-      }
+      rows.forEach(function(r, ri) {
+        grandBill   += r.billCount  || 0;
+        grandTotal  += r.total      || 0;
+        grandDeduct += r.deduct     || 0;
+        grandNet    += r.netPayable || 0;
 
-      window._commissionData[agentName].forEach(function(entry, idx) {
-        const deduct  = Math.round((entry.total || 0) * (entry.pct || 0) / 100);
-        const netPay  = (entry.total || 0) - deduct;
-        entry.deduct     = deduct;
-        entry.netPayable = netPay;
-
-        subBills  += entry.billCount || 0;
-        subTotal  += entry.total     || 0;
-        subDeduct += deduct;
-        subNet    += netPay;
-
-        const dealerLabel = entry.dealer ? `<span style="font-size:11px;color:var(--text2);display:block;">${escHtml(entry.dealer)}</span>` : `<span style="font-size:11px;color:var(--text2);display:block;">ทุกเจ้า</span>`;
-
-        rowsInner += `
+        rowsHtml += `
           <tr>
-            <td style="padding:6px 8px;font-weight:700;color:var(--text);">${escHtml(agentName)}${dealerLabel}</td>
-            <td style="padding:6px 8px;text-align:center;color:var(--text2);">${entry.billCount || 0} บิล</td>
-            <td style="padding:6px 8px;text-align:right;color:var(--gold);font-family:'Kanit',sans-serif;">${(entry.total||0).toLocaleString('th-TH')}</td>
+            <td style="padding:6px 8px;font-weight:700;">${escHtml(custName)}</td>
+            <td style="padding:6px 8px;text-align:center;color:var(--text2);">${r.billCount||0} บิล</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--gold);font-family:'Kanit',sans-serif;">${(r.total||0).toLocaleString('th-TH')}</td>
+            <td style="padding:6px 8px;color:var(--text2);font-size:12px;">${escHtml(r.agentName||'')}</td>
             <td style="padding:6px 8px;text-align:center;">
-              <input type="number" min="0" max="100" step="0.5" value="${entry.pct||0}"
-                style="width:60px;text-align:center;background:var(--dark3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 4px;font-size:13px;"
-                oninput="updateCommissionPct('${escHtml(agentName)}',${idx},this.value)"> %
+              <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+                <input type="number" min="0" max="100" step="0.5" value="${r.pct||0}"
+                  style="width:55px;text-align:center;background:var(--dark3);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:3px 4px;font-size:13px;"
+                  onchange="updateCommPct('${escHtml(k)}',${ri},this.value)">%
+              </div>
             </td>
-            <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'Kanit',sans-serif;">${deduct.toLocaleString('th-TH')}</td>
-            <td style="padding:6px 8px;text-align:right;font-family:'Kanit',sans-serif;color:var(--gold);font-weight:700;">${netPay.toLocaleString('th-TH')}</td>
-            <td style="padding:6px 4px;text-align:center;">
-              <button class="btn btn-sm" style="background:rgba(255,77,109,0.2);color:var(--red);border:1px solid var(--red);font-size:11px;padding:2px 8px;"
-                onclick="removeCommissionAgent('${escHtml(agentName)}',${idx})">ลบ</button>
+            <td style="padding:6px 8px;text-align:right;color:var(--green);font-family:'Kanit',sans-serif;">${(r.deduct||0).toLocaleString('th-TH')}</td>
+            <td style="padding:6px 8px;text-align:right;color:var(--gold);font-weight:700;font-family:'Kanit',sans-serif;">${(r.netPayable||0).toLocaleString('th-TH')}</td>
+            <td style="padding:4px;text-align:center;">
+              <button onclick="deleteCommRow('${escHtml(k)}',${ri})"
+                style="background:rgba(255,77,109,0.15);color:var(--red);border:1px solid rgba(255,77,109,0.4);border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;">ลบ</button>
             </td>
           </tr>`;
       });
-
-      grandBills  += subBills;
-      grandTotal  += subTotal;
-      grandDeduct += subDeduct;
-      grandNet    += subNet;
-      return rowsInner;
-    }).join('');
+    });
 
     tableHtml = `
       <div class="summary-card" style="overflow-x:auto;margin-bottom:12px;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;">
-              <th style="padding:6px 8px;text-align:left;">ชื่อ / เจ้าที่ส่ง</th>
+            <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:.5px;">
+              <th style="padding:6px 8px;text-align:left;">ชื่อตัวแทน</th>
               <th style="padding:6px 8px;text-align:center;">จำนวนบิล</th>
-              <th style="padding:6px 8px;text-align:right;">ยอดรวม (เจ้าที่เลือก)</th>
+              <th style="padding:6px 8px;text-align:right;">ยอดรวม (เฉพาะเจ้า)</th>
+              <th style="padding:6px 8px;text-align:left;">เจ้าที่ส่ง</th>
               <th style="padding:6px 8px;text-align:center;">% ค่าขนม</th>
-              <th style="padding:6px 8px;text-align:right;">ยอดหัก % (฿)</th>
-              <th style="padding:6px 8px;text-align:right;">ยอดค้างหลังหัก (฿)</th>
+              <th style="padding:6px 8px;text-align:right;">ยอดหัก %</th>
+              <th style="padding:6px 8px;text-align:right;">ยอดค้างหลังหัก %</th>
               <th style="padding:4px;"></th>
             </tr>
           </thead>
-          <tbody>${rowsHtml}</tbody>
+          <tbody id="comm_tbody">${rowsHtml}</tbody>
           <tfoot>
-            <tr style="border-top:2px solid var(--border);font-weight:900;color:var(--gold);font-family:'Kanit',sans-serif;">
-              <td style="padding:8px;">รวม</td>
-              <td style="padding:8px;text-align:center;">${grandBills} บิล</td>
-              <td style="padding:8px;text-align:right;">${grandTotal.toLocaleString('th-TH')}</td>
-              <td></td>
+            <tr style="border-top:2px solid var(--border);font-weight:900;font-family:'Kanit',sans-serif;">
+              <td style="padding:8px;color:var(--text);">รวม</td>
+              <td style="padding:8px;text-align:center;color:var(--text2);">${grandBill} บิล</td>
+              <td style="padding:8px;text-align:right;color:var(--gold);">${grandTotal.toLocaleString('th-TH')}</td>
+              <td></td><td></td>
               <td style="padding:8px;text-align:right;color:var(--green);">${grandDeduct.toLocaleString('th-TH')}</td>
-              <td style="padding:8px;text-align:right;">${grandNet.toLocaleString('th-TH')}</td>
+              <td style="padding:8px;text-align:right;color:var(--gold);">${grandNet.toLocaleString('th-TH')}</td>
               <td></td>
             </tr>
           </tfoot>
         </table>
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px;">
-        <button class="btn btn-gold" onclick="saveCommissionData()" style="height:38px;padding:0 20px;font-size:13px;white-space:nowrap;">💾 บันทึก</button>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px;">
+        <button class="btn btn-gold" onclick="saveAllCommission()" style="height:38px;padding:0 20px;font-size:13px;white-space:nowrap;">💾 บันทึกทั้งหมด</button>
       </div>`;
   }
 
-  // ===== แสดงที่บันทึกไปแล้วในงวดนี้ =====
-  let savedHtml = '';
-  if (Object.keys(savedComm).length) {
-    savedHtml = `<div class="summary-card" style="border-color:rgba(57,217,138,0.3);">
-      <div class="card-title" style="margin-bottom:8px;color:var(--green);">✅ บันทึกแล้วในงวด ${period}</div>`;
-    Object.keys(savedComm).forEach(function(agName) {
-      const d = savedComm[agName];
-      savedHtml += `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid var(--border);">
-        <span style="font-weight:700;">${escHtml(agName)}</span> — บันทึก ${d.savedAt||''}
-      </div>`;
-    });
-    savedHtml += `</div>`;
-  }
-
-  el.innerHTML = searchBar + tableHtml + savedHtml;
+  el.innerHTML = searchBar + tableHtml;
 }
 
-function addCommissionAgent() {
-  const input = document.getElementById('comm_search');
-  const dealerInput = document.getElementById('comm_dealer');
-  if (!input) return;
-  const name = input.value.trim();
-  if (!name) { toast('กรุณากรอกชื่อตัวแทน', 'error'); return; }
+// ---- เพิ่มแถวใหม่ ----
+function addCommissionRow() {
+  const custInput  = document.getElementById('comm_cust_input');
+  const agentInput = document.getElementById('comm_agent_input');
+  if (!custInput || !agentInput) return;
 
+  const custName  = custInput.value.trim();
+  const agentName = agentInput.value.trim();
+  if (!custName)  { toast('กรุณากรอกชื่อตัวแทน', 'error'); return; }
+  if (!agentName) { toast('กรุณาเลือกเจ้าที่ส่ง', 'error'); return; }
+
+  // ตรวจว่า custName มีจริง
   const custData  = summaryData['customer'] || {};
-  const billsData = summaryData['customerBills'] || {};
-  const matched   = Object.keys(custData).find(function(n){ return n === name || n.toLowerCase() === name.toLowerCase(); });
-  if (!matched) { toast('ไม่พบชื่อ "' + name + '" ในระบบ กรุณาตรวจสอบ', 'error'); return; }
+  const matchCust = Object.keys(custData).find(function(n){ return n.toLowerCase()===custName.toLowerCase(); });
+  if (!matchCust) { toast('ไม่พบลูกค้า "' + custName + '" ในระบบ', 'error'); return; }
 
-  const dealer = dealerInput ? dealerInput.value.trim() : '';
+  // ตรวจว่า agentName มีจริง
+  const agentData  = summaryData['agent'] || {};
+  const matchAgent = Object.keys(agentData).find(function(n){ return n.toLowerCase()===agentName.toLowerCase(); });
+  if (!matchAgent) { toast('ไม่พบเจ้าที่ส่ง "' + agentName + '" ในระบบ', 'error'); return; }
 
-  // คำนวณยอดจากบิลที่กรองตามเจ้าที่เลือก
-  const agBills = billsData[matched] || [];
-  let filteredTotal = 0;
-  let filteredBillCount = 0;
+  // คำนวณยอดเฉพาะเจ้าที่เลือก สำหรับลูกค้าคนนี้
+  const agBills = (agentData[matchAgent].bills || []).filter(function(b){ return b.customerName === matchCust; });
+  const agTotal = agBills.reduce(function(s,b){ return s+(b.total||0); }, 0);
+  const billCount = agBills.length;
 
-  agBills.forEach(function(b) {
-    if (!dealer) {
-      // ไม่ได้เลือกเจ้า → รวมทุกบิล
-      filteredTotal += b.total || 0;
-      filteredBillCount++;
-    } else {
-      // เลือกเจ้า → รวมเฉพาะยอดของเจ้านั้นในแต่ละบิล
-      const dealerTotal = (b.items || []).reduce(function(s, it) {
-        return s + (it.agentName === dealer ? (it.totalPrice || 0) : 0);
-      }, 0);
-      if (dealerTotal > 0) {
-        filteredTotal += dealerTotal;
-        filteredBillCount++;
-      }
-    }
-  });
-
-  // ถ้า key เดิมมีอยู่แล้ว ให้ push entry ใหม่เพิ่ม (สำหรับเจ้าคนละเจ้า)
-  // ถ้าเจ้าซ้ำกันให้แจ้งเตือน
-  if (!window._commissionData[matched]) {
-    window._commissionData[matched] = [];
-  }
-  const existing = window._commissionData[matched];
-  const dupDealer = existing.find(function(e){ return (e.dealer||'') === dealer; });
-  if (dupDealer) {
-    toast(matched + (dealer ? ' / ' + dealer : '') + ' อยู่ในรายการแล้ว', 'info');
+  if (!billCount) {
+    toast(matchCust + ' ไม่มีบิลกับเจ้า ' + matchAgent, 'info');
     return;
   }
 
-  existing.push({
-    billCount:  filteredBillCount,
-    total:      filteredTotal,
-    dealer:     dealer,
-    pct:        0,
-    deduct:     0,
-    netPayable: filteredTotal
-  });
-
-  window._commSearchVal  = '';
-  window._commDealerVal  = '';
-  renderSummary();
-  toast(matched + (dealer ? ' (เจ้า: ' + dealer + ')' : '') + ' เพิ่มแล้ว', 'success');
-}
-
-function removeCommissionAgent(name, idx) {
-  if (!window._commissionData[name]) return;
-  if (typeof idx === 'number' && window._commissionData[name].length > 1) {
-    // ลบเฉพาะ entry ที่ idx
-    window._commissionData[name].splice(idx, 1);
-  } else {
-    // ลบทั้งหมดของ agent นี้
-    delete window._commissionData[name];
-  }
-  renderSummary();
-}
-
-function updateCommissionPct(agentName, idx, val) {
-  if (!window._commissionData[agentName]) return;
-  const pct = parseFloat(val) || 0;
-  window._commissionData[agentName][idx].pct = pct;
-  // คำนวณใหม่และ re-render
-  renderSummary();
-}
-
-function saveCommissionData() {
   const period = getPeriodLabel();
-  const entries = Object.keys(window._commissionData);
-  if (!entries.length) { toast('ไม่มีข้อมูลตัวแทน', 'error'); return; }
+  const key    = period + '::' + matchCust;
 
-  // บันทึกทีละ agent (หลายรายการ ส่ง loop)
-  let pending = entries.length;
-  let errCount = 0;
+  if (!window._commData[key]) window._commData[key] = [];
 
-  entries.forEach(function(agentName) {
-    const rows = window._commissionData[agentName] || [];
-    google.script.run
-      .withSuccessHandler(function() {
-        pending--;
-        if (pending === 0) {
-          if (errCount === 0) {
-            // โหลด commission จาก server ใหม่เพื่อ refresh
-            loadAgentCommission(function() {
-              // อัปเดตยอดในหน้าลูกค้าด้วย
-              applyCommissionToCustomerDisplay();
-              renderSummary();
-              toast('บันทึกข้อมูลตัวแทนสำเร็จ ✓', 'success');
-            });
-          } else {
-            toast('บันทึกบางรายการล้มเหลว (' + errCount + ')', 'error');
-          }
-        }
-      })
-      .withFailureHandler(function(e) {
-        pending--;
-        errCount++;
-        toast('บันทึกล้มเหลว: ' + e, 'error');
-      })
-      .saveAgentCommission({
-        period:    period,
-        agentName: agentName,
-        rows:      rows,
-        savedAt:   new Date().toLocaleString('th-TH')
-      });
+  // ตรวจซ้ำ (cust + agent เดิมแล้ว)
+  const dup = window._commData[key].find(function(r){ return r.agentName === matchAgent; });
+  if (dup) { toast(matchCust + ' + ' + matchAgent + ' มีอยู่แล้ว', 'info'); return; }
+
+  window._commData[key].push({
+    agentName: matchAgent,
+    billCount: billCount,
+    total:     agTotal,
+    pct:       0,
+    deduct:    0,
+    netPayable: agTotal
   });
+
+  custInput.value  = '';
+  agentInput.value = '';
+  renderSummary();
+  toast('เพิ่ม ' + matchCust + ' + ' + matchAgent + ' แล้ว', 'success');
 }
 
-function loadAgentCommission(callback) {
-  google.script.run
-    .withSuccessHandler(function(r) {
-      if (r && r.data) {
-        window._agentCommissionFromServer = r.data;
-        try { localStorage.setItem('_agentCommission', JSON.stringify(r.data)); } catch(e) {}
-      }
-      if (callback) callback();
-    })
-    .withFailureHandler(function(e) {
-      console.error('loadAgentCommission error:', e);
-      if (callback) callback();
-    })
-    .getAgentCommission();
+// ---- อัปเดต % ----
+function updateCommPct(key, rowIdx, val) {
+  if (!window._commData[key] || !window._commData[key][rowIdx]) return;
+  window._commData[key][rowIdx].pct = parseFloat(val) || 0;
+  _recalcRows(window._commData[key]);
+  renderSummary();
 }
 
-// ===== ใช้ยอดหลังหัก % สำหรับแสดงในหน้าลูกค้า และ notify =====
-function getCommissionNetForCustomer(name, period) {
-  const p = period || getPeriodLabel();
-  const commData = (window._agentCommissionFromServer || {});
-  // ลองหาจาก server data ก่อน
-  if (commData[p] && commData[p][name]) {
-    const rows = commData[p][name].rows || [];
-    const net  = rows.reduce(function(s, r){ return s + (r.netPayable || 0); }, 0);
-    return { hasCommission: true, netPayable: net, rows: rows };
+// ---- ลบแถว ----
+function deleteCommRow(key, rowIdx) {
+  if (!window._commData[key]) return;
+  window._commData[key].splice(rowIdx, 1);
+  if (!window._commData[key].length) {
+    delete window._commData[key];
+    // ลบจาก server ด้วย
+    _pushCommKey(key, null);
   }
-  // ลองจาก window._commissionData (ยังไม่ save)
-  if (window._commissionData && window._commissionData[name]) {
-    const rows = window._commissionData[name] || [];
-    const net  = rows.reduce(function(s,r){ return s+(r.netPayable||0); }, 0);
-    return { hasCommission: true, netPayable: net, rows: rows };
-  }
-  return { hasCommission: false, netPayable: null, rows: [] };
+  renderSummary();
+  toast('ลบแล้ว', 'success');
 }
 
-// อัปเดต yอดในหน้าแยกตามลูกค้าหลังบันทึก commission
-function applyCommissionToCustomerDisplay() {
-  // เก็บ flag ไว้ว่ามี commission ที่บันทึกแล้ว — renderSummary จะอ่านไปใช้
-  window._hasCommission = true;
+// ---- บันทึกทั้งหมดขึ้น server ----
+function saveAllCommission() {
+  const period = getPeriodLabel();
+  const keys   = Object.keys(window._commData).filter(function(k){ return k.startsWith(period + '::'); });
+  if (!keys.length) { toast('ไม่มีรายการให้บันทึก', 'info'); return; }
+
+  let pending = keys.length, errCnt = 0;
+  keys.forEach(function(k) {
+    _recalcRows(window._commData[k]);
+    _pushCommKey(k, window._commData[k]);
+    // นับผ่าน callback จริงไม่ได้เพราะ _pushCommKey ไม่ return Promise — ใช้ฝั่ง server fire-and-forget
+    pending--;
+  });
+  // บันทึก localStorage เพิ่มด้วย
+  try { localStorage.setItem('_commData', JSON.stringify(window._commData)); } catch(e) {}
+  toast('บันทึกสำเร็จ ✓ (sync ข้ามเครื่อง)', 'success');
 }
 
 function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby4FsNtjPSJfzB5oyrUYFzcfRO1Zwv7zSFNSFV7gV91_-8PWIIxXvHfiiJ2JEY3b0sE/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyb0csGw53QlES00EWoPNs3wevGBPOC6ec8CkJ4ZvGAeKdrRwH9yymDSarBzxW0FTv9/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
