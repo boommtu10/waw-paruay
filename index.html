@@ -3397,8 +3397,9 @@ async function exportAllNotifyImages() {
       const name = names[i];
       const amt  = getNotifyAmountForCustomer(name);
       if (amt <= 0) continue;  // ไม่มียอดค้าง ข้าม
+      const commDeduct = getCommissionDeductForCustomer(name);
       const text = buildNotifyText(name, amt, period, info);
-      const wrapper = buildNotifyWrapper(name, amt, period, info, text);
+      const wrapper = buildNotifyWrapper(name, amt, period, info, text, commDeduct);
       const safeP = period.replace(/\//g,'-');
       await captureWrapper(wrapper, `แจ้งยอด_${name}_${safeP}.png`);
       count++;
@@ -3408,7 +3409,34 @@ async function exportAllNotifyImages() {
   });
 }
 
-function buildNotifyWrapper(name, amount, period, info, text) {
+function buildNotifyWrapper(name, amount, period, info, text, commDeduct) {
+  // amount = ยอดรวมก่อนหักค่าขนม (gross)
+  // commDeduct = ค่าขนม (ยอดหัก %)
+  // netAmount = ยอดชำระจริง (หลังหัก)
+  const deduct = commDeduct || 0;
+  const netAmount = Math.max(0, amount - deduct);
+
+  // สร้างส่วนแสดงรายละเอียดยอดชำระ
+  const breakdownHtml = deduct > 0 ? `
+    <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #2e2e50;">
+      <span style="font-size:14px;color:#888;">ยอดรวม</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:16px;font-weight:700;color:#e0e0e0;">${amount.toLocaleString('th-TH')}</span>
+    </div>
+    <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #2e2e50;">
+      <span style="font-size:14px;color:#39d98a;">ค่าขนม</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:16px;font-weight:700;color:#39d98a;">${deduct.toLocaleString('th-TH')}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+      <span style="font-size:15px;color:#ccc;font-weight:700;">ยอดชำระจริง</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:36px;font-weight:900;color:#ff4d6d;line-height:1.1;">${netAmount.toLocaleString('th-TH')} บาท</span>
+    </div>
+  ` : `
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;color:#888;margin-bottom:6px;">ยอดชำระจริง</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:36px;font-weight:900;color:#ff4d6d;line-height:1.1;">${amount.toLocaleString('th-TH')} บาท</span>
+    </div>
+  `;
+
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
@@ -3425,8 +3453,8 @@ function buildNotifyWrapper(name, amount, period, info, text) {
     <div style="font-size:22px;font-weight:900;color:#f5c518;margin-bottom:4px;">${name}</div>
     <div style="font-size:13px;color:#888;margin-bottom:18px;">งวดวันที่ ${period}</div>
     <div style="background:#1c1c2e;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #2e2e50;">
-      <div style="font-size:13px;color:#888;margin-bottom:6px;">ยอดที่ต้องชำระ</div>
-      <div style="font-family:'Kanit',sans-serif;font-size:36px;font-weight:900;color:#ff4d6d;">${amount.toLocaleString('th-TH')} บาท</div>
+      <div style="font-size:13px;color:#888;margin-bottom:10px;">ยอดที่ต้องชำระ</div>
+      ${breakdownHtml}
     </div>
     <div style="background:#1c1c2e;border-radius:10px;padding:16px;border:1px solid #2e2e50;line-height:1.9;">
       <div style="font-size:12px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">ข้อมูลบัญชี</div>
@@ -3473,8 +3501,9 @@ async function exportSingleNotifyImage() {
     return;
   }
   const period = getPeriodLabel();
+  const commDeduct = getCommissionDeductForCustomer(matchedName);
   const text = buildNotifyText(matchedName, amt, period, info);
-  const wrapper = buildNotifyWrapper(matchedName, amt, period, info, text);
+  const wrapper = buildNotifyWrapper(matchedName, amt, period, info, text, commDeduct);
   const safeP = period.replace(/\//g,'-');
 
   ensureHtml2Canvas(async function() {
