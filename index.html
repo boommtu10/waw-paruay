@@ -5734,22 +5734,67 @@ function renderCommissionTab() {
   // โหลด commission ที่บันทึกไว้สำหรับงวดนี้
   const savedComm  = ((window._agentCommissionFromServer || {})[period]) || {};
 
+  // ===== Restore จาก server data ถ้า _commissionData ว่างอยู่ =====
+  // รีเซ็ต _commissionData ถ้างวดเปลี่ยน
+  if (window._commissionPeriod && window._commissionPeriod !== period) {
+    window._commissionData = {};
+  }
+  window._commissionPeriod = period;
+
+  if (!Object.keys(window._commissionData).length && Object.keys(savedComm).length) {
+    Object.keys(savedComm).forEach(function(agName) {
+      const d = savedComm[agName];
+      if (d && d.rows && d.rows.length) {
+        window._commissionData[agName] = d.rows.map(function(r) {
+          return {
+            billCount:  r.billCount  || 0,
+            total:      r.total      || 0,
+            dealer:     r.dealer     || '',
+            pct:        r.pct        || 0,
+            deduct:     r.deduct     || 0,
+            netPayable: r.netPayable || 0
+          };
+        });
+      }
+    });
+  }
+
   if (!custNames.length) {
     el.innerHTML = '<div class="text-muted text-sm">กรุณาโหลดสรุปก่อน</div>';
     return;
   }
 
+  // รวบรวมชื่อเจ้าที่ส่งทั้งหมดจากบิล
+  const dealerSet = new Set();
+  Object.keys(billsData).forEach(function(cn) {
+    (billsData[cn] || []).forEach(function(b) {
+      (b.items || []).forEach(function(it) { if (it.agentName) dealerSet.add(it.agentName); });
+    });
+  });
+  const dealerNames = Array.from(dealerSet).sort();
+
   // ===== datalist สำหรับ autocomplete =====
   const dlHtml = `<datalist id="comm_agent_list">${custNames.map(n=>`<option value="${escHtml(n)}">`).join('')}</datalist>`;
+  const dealerDlHtml = `<datalist id="comm_dealer_list">${dealerNames.map(n=>`<option value="${escHtml(n)}">`).join('')}</datalist>`;
+
+  // restore ค่าที่กรอกไว้ก่อน re-render
+  const prevAgent  = window._commSearchVal  || '';
+  const prevDealer = window._commDealerVal  || '';
 
   // ===== ส่วนค้นหา + เพิ่ม =====
   const searchBar = `
     <div class="summary-card" style="margin-bottom:12px;">
       <div class="card-title" style="margin-bottom:10px;">🤝 ตัวแทน — หักค่าขนม (%)</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">ค้นหาชื่อลูกค้าที่เป็นตัวแทน แล้วกดเพิ่มเพื่อตั้งค่า % ค่าขนม</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">ค้นหาชื่อลูกค้าที่เป็นตัวแทน แล้วเลือกเจ้าที่ส่ง แล้วกดเพิ่มเพื่อตั้งค่า % ค่าขนม</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="comm_search" list="comm_agent_list" placeholder="🔍 ค้นหาชื่อตัวแทน..." style="flex:1;min-width:140px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
+        <input type="text" id="comm_search" list="comm_agent_list" placeholder="🔍 ค้นหาชื่อตัวแทน..." value="${escHtml(prevAgent)}"
+          style="flex:2;min-width:140px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);"
+          oninput="window._commSearchVal=this.value">
         ${dlHtml}
+        <input type="text" id="comm_dealer" list="comm_dealer_list" placeholder="🏢 เจ้าที่ส่ง..." value="${escHtml(prevDealer)}"
+          style="flex:2;min-width:130px;padding:7px 10px;font-size:13px;background:var(--dark3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);"
+          oninput="window._commDealerVal=this.value">
+        ${dealerDlHtml}
         <button class="btn btn-gold" onclick="addCommissionAgent()" style="white-space:nowrap;height:38px;padding:0 14px;font-size:13px;">+ เพิ่ม</button>
       </div>
     </div>`;
@@ -5765,29 +5810,27 @@ function renderCommissionTab() {
     let grandBills = 0, grandTotal = 0, grandDeduct = 0, grandNet = 0;
     const rowsHtml = rows.map(function(agentName) {
       const entries = window._commissionData[agentName] || [];
-      // รวมบิลและยอดของ agent นี้ทั้งหมด
-      const agBills = billsData[agentName] || [];
-      const agTotal = agBills.reduce(function(s,b){ return s + (b.total||0); }, 0);
-      const agBillCount = agBills.length;
 
-      // สร้าง entries ถ้ายังไม่มี (เพิ่งเพิ่ม)
+      let rowsInner = '';
+      let subBills = 0, subTotal = 0, subDeduct = 0, subNet = 0;
+
+      // สร้าง entries เริ่มต้นถ้ายังไม่มี
       if (!entries.length) {
+        const agBills = billsData[agentName] || [];
+        const agTotal = agBills.reduce(function(s,b){ return s + (b.total||0); }, 0);
         window._commissionData[agentName] = [{
-          billCount: agBillCount,
+          billCount: agBills.length,
           total: agTotal,
+          dealer: '',
           pct: 0,
           deduct: 0,
           netPayable: agTotal
         }];
       }
 
-      let rowsInner = '';
-      let subBills = 0, subTotal = 0, subDeduct = 0, subNet = 0;
-
       window._commissionData[agentName].forEach(function(entry, idx) {
         const deduct  = Math.round((entry.total || 0) * (entry.pct || 0) / 100);
         const netPay  = (entry.total || 0) - deduct;
-        // อัปเดตค่าใน entry
         entry.deduct     = deduct;
         entry.netPayable = netPay;
 
@@ -5796,9 +5839,11 @@ function renderCommissionTab() {
         subDeduct += deduct;
         subNet    += netPay;
 
+        const dealerLabel = entry.dealer ? `<span style="font-size:11px;color:var(--text2);display:block;">${escHtml(entry.dealer)}</span>` : `<span style="font-size:11px;color:var(--text2);display:block;">ทุกเจ้า</span>`;
+
         rowsInner += `
           <tr>
-            <td style="padding:6px 8px;font-weight:700;color:var(--text);">${escHtml(agentName)}</td>
+            <td style="padding:6px 8px;font-weight:700;color:var(--text);">${escHtml(agentName)}${dealerLabel}</td>
             <td style="padding:6px 8px;text-align:center;color:var(--text2);">${entry.billCount || 0} บิล</td>
             <td style="padding:6px 8px;text-align:right;color:var(--gold);font-family:'Kanit',sans-serif;">${(entry.total||0).toLocaleString('th-TH')}</td>
             <td style="padding:6px 8px;text-align:center;">
@@ -5810,7 +5855,7 @@ function renderCommissionTab() {
             <td style="padding:6px 8px;text-align:right;font-family:'Kanit',sans-serif;color:var(--gold);font-weight:700;">${netPay.toLocaleString('th-TH')}</td>
             <td style="padding:6px 4px;text-align:center;">
               <button class="btn btn-sm" style="background:rgba(255,77,109,0.2);color:var(--red);border:1px solid var(--red);font-size:11px;padding:2px 8px;"
-                onclick="removeCommissionAgent('${escHtml(agentName)}')">ลบ</button>
+                onclick="removeCommissionAgent('${escHtml(agentName)}',${idx})">ลบ</button>
             </td>
           </tr>`;
       });
@@ -5827,9 +5872,9 @@ function renderCommissionTab() {
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
             <tr style="border-bottom:2px solid var(--border);color:var(--text2);font-size:11px;text-transform:uppercase;">
-              <th style="padding:6px 8px;text-align:left;">ชื่อ</th>
+              <th style="padding:6px 8px;text-align:left;">ชื่อ / เจ้าที่ส่ง</th>
               <th style="padding:6px 8px;text-align:center;">จำนวนบิล</th>
-              <th style="padding:6px 8px;text-align:right;">ยอดทุกบิล (฿)</th>
+              <th style="padding:6px 8px;text-align:right;">ยอดรวม (เจ้าที่เลือก)</th>
               <th style="padding:6px 8px;text-align:center;">% ค่าขนม</th>
               <th style="padding:6px 8px;text-align:right;">ยอดหัก % (฿)</th>
               <th style="padding:6px 8px;text-align:right;">ยอดค้างหลังหัก (฿)</th>
@@ -5874,6 +5919,7 @@ function renderCommissionTab() {
 
 function addCommissionAgent() {
   const input = document.getElementById('comm_search');
+  const dealerInput = document.getElementById('comm_dealer');
   if (!input) return;
   const name = input.value.trim();
   if (!name) { toast('กรุณากรอกชื่อตัวแทน', 'error'); return; }
@@ -5882,26 +5928,67 @@ function addCommissionAgent() {
   const billsData = summaryData['customerBills'] || {};
   const matched   = Object.keys(custData).find(function(n){ return n === name || n.toLowerCase() === name.toLowerCase(); });
   if (!matched) { toast('ไม่พบชื่อ "' + name + '" ในระบบ กรุณาตรวจสอบ', 'error'); return; }
-  if (window._commissionData[matched]) { toast(matched + ' อยู่ในรายการแล้ว', 'info'); return; }
 
-  const agBills    = billsData[matched] || [];
-  const agTotal    = agBills.reduce(function(s,b){ return s+(b.total||0); }, 0);
-  const agBillCount = agBills.length;
+  const dealer = dealerInput ? dealerInput.value.trim() : '';
 
-  window._commissionData[matched] = [{
-    billCount:  agBillCount,
-    total:      agTotal,
+  // คำนวณยอดจากบิลที่กรองตามเจ้าที่เลือก
+  const agBills = billsData[matched] || [];
+  let filteredTotal = 0;
+  let filteredBillCount = 0;
+
+  agBills.forEach(function(b) {
+    if (!dealer) {
+      // ไม่ได้เลือกเจ้า → รวมทุกบิล
+      filteredTotal += b.total || 0;
+      filteredBillCount++;
+    } else {
+      // เลือกเจ้า → รวมเฉพาะยอดของเจ้านั้นในแต่ละบิล
+      const dealerTotal = (b.items || []).reduce(function(s, it) {
+        return s + (it.agentName === dealer ? (it.totalPrice || 0) : 0);
+      }, 0);
+      if (dealerTotal > 0) {
+        filteredTotal += dealerTotal;
+        filteredBillCount++;
+      }
+    }
+  });
+
+  // ถ้า key เดิมมีอยู่แล้ว ให้ push entry ใหม่เพิ่ม (สำหรับเจ้าคนละเจ้า)
+  // ถ้าเจ้าซ้ำกันให้แจ้งเตือน
+  if (!window._commissionData[matched]) {
+    window._commissionData[matched] = [];
+  }
+  const existing = window._commissionData[matched];
+  const dupDealer = existing.find(function(e){ return (e.dealer||'') === dealer; });
+  if (dupDealer) {
+    toast(matched + (dealer ? ' / ' + dealer : '') + ' อยู่ในรายการแล้ว', 'info');
+    return;
+  }
+
+  existing.push({
+    billCount:  filteredBillCount,
+    total:      filteredTotal,
+    dealer:     dealer,
     pct:        0,
     deduct:     0,
-    netPayable: agTotal
-  }];
-  input.value = '';
+    netPayable: filteredTotal
+  });
+
+  window._commSearchVal  = '';
+  window._commDealerVal  = '';
   renderSummary();
-  toast(matched + ' เพิ่มแล้ว', 'success');
+  toast(matched + (dealer ? ' (เจ้า: ' + dealer + ')' : '') + ' เพิ่มแล้ว', 'success');
 }
 
-function removeCommissionAgent(name) {
-  delete window._commissionData[name];
+function removeCommissionAgent(name, idx) {
+  if (!window._commissionData[name]) return;
+  if (typeof idx === 'number' && window._commissionData[name].length > 1) {
+    // ลบเฉพาะ entry ที่ idx
+    window._commissionData[name].splice(idx, 1);
+  } else {
+    // ลบทั้งหมดของ agent นี้
+    delete window._commissionData[name];
+  }
   renderSummary();
 }
 
