@@ -2455,6 +2455,10 @@ function renderSummary() {
       const autoCleared = hasPrize && netPayable === 0;
       if (custPayStatus === 'paid' && !autoCleared) netPayable = 0;
 
+      // ===== ถ้ามี commission → หักออกจากยอดเดิม (ไม่ใช่แทนทั้งหมด) =====
+      const commDeduct = getCommissionDeductForCustomer(name);
+      const displayPayable = Math.max(0, netPayable - commDeduct);
+
       const billRows = bills.map((b, bi) => {
         const dateShort = b.date ? b.date.split(' ')[0] : '';
         const items = b.items || [];
@@ -2525,9 +2529,11 @@ function renderSummary() {
           </div>`;
       }).join('');
 
-      const headerColor = hasPrize ? (netPayable === 0 ? 'var(--green)' : netPayable < total ? 'var(--green)' : 'var(--gold)') : 'var(--gold)';
-      const headerLabel = hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม';
-      const subLine = hasPrize && netPayable < total ? `<div style="font-size:10px;color:var(--text2);">ยอดแทง ${total.toLocaleString('th-TH')} ฿</div>` : '';
+      const headerColor = hasPrize ? (displayPayable === 0 ? 'var(--green)' : displayPayable < total ? 'var(--green)' : 'var(--gold)') : 'var(--gold)';
+      const headerLabel = commDeduct > 0 ? 'ยอดหลังหักค่าขนม' : (hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม');
+      const subLine = commDeduct > 0
+        ? `<div style="font-size:10px;color:var(--green);">หัก ${commDeduct.toLocaleString('th-TH')} ฿ (ค่าขนม)</div>`
+        : (hasPrize && netPayable < total ? `<div style="font-size:10px;color:var(--text2);">ยอดแทง ${total.toLocaleString('th-TH')} ฿</div>` : '');
 
       // ===== ปุ่ม รอชำระ / ชำระแล้ว =====
       // prizeWasSaved = true ถ้าเคยบันทึกผลรางวัลไปแล้ว (memory หรือ Sheet)
@@ -2558,7 +2564,7 @@ function renderSummary() {
             <div style="display:flex;align-items:center;gap:10px;">
               <div style="text-align:right;">
                 <div style="font-size:10px;color:var(--text2);">${headerLabel}</div>
-                <div class="sc-total" style="color:${headerColor};">${netPayable.toLocaleString('th-TH')} ฿</div>
+                <div class="sc-total" style="color:${headerColor};">${displayPayable.toLocaleString('th-TH')} ฿</div>
                 ${subLine}
               </div>
               <span class="expand-arrow" id="arrow_${name}" style="color:var(--text2);font-size:12px;transition:transform .2s;">▼</span>
@@ -5910,16 +5916,45 @@ function saveAllCommission() {
   const keys   = Object.keys(window._commData).filter(function(k){ return k.startsWith(period + '::'); });
   if (!keys.length) { toast('ไม่มีรายการให้บันทึก', 'info'); return; }
 
+  // บันทึก localStorage ก่อนเลย (ไม่ต้องรอ server)
+  try { localStorage.setItem('_commData', JSON.stringify(window._commData)); } catch(e) {}
+
   let pending = keys.length, errCnt = 0;
   keys.forEach(function(k) {
     _recalcRows(window._commData[k]);
-    _pushCommKey(k, window._commData[k]);
-    // นับผ่าน callback จริงไม่ได้เพราะ _pushCommKey ไม่ return Promise — ใช้ฝั่ง server fire-and-forget
-    pending--;
+    google.script.run
+      .withSuccessHandler(function() {
+        pending--;
+        if (pending === 0) {
+          if (errCnt === 0) {
+            toast('บันทึกสำเร็จ ✓ sync ข้ามเครื่องแล้ว', 'success');
+          } else {
+            toast('บันทึกบางรายการล้มเหลว (' + errCnt + ')', 'error');
+          }
+          // reload commission จาก server แล้ว re-render
+          loadAgentCommission(function() { renderSummary(); });
+        }
+      })
+      .withFailureHandler(function(e) {
+        errCnt++;
+        pending--;
+        console.error('saveAgentCommission error:', e);
+        if (pending === 0) {
+          toast('บันทึกล้มเหลว: ' + (e.message || e), 'error');
+        }
+      })
+      .saveAgentCommission(k, window._commData[k]);
   });
-  // บันทึก localStorage เพิ่มด้วย
-  try { localStorage.setItem('_commData', JSON.stringify(window._commData)); } catch(e) {}
-  toast('บันทึกสำเร็จ ✓ (sync ข้ามเครื่อง)', 'success');
+}
+
+// คืนยอดหัก % รวมทุกเจ้าของตัวแทนคนนี้ สำหรับงวดที่กำลังดูอยู่
+// ใช้ในหน้าลูกค้า: ยอดแสดง = ยอดเดิม - getCommissionDeductForCustomer(name)
+function getCommissionDeductForCustomer(custName) {
+  const period = getPeriodLabel();
+  const key    = period + '::' + custName;
+  const rows   = window._commData[key] || [];
+  if (!rows.length) return 0;
+  return rows.reduce(function(s, r) { return s + (r.deduct || 0); }, 0);
 }
 
 function escHtml(s) {
