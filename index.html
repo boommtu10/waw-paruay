@@ -1320,9 +1320,9 @@
         <span class="digit-hint">🔍 แทง 4ตัว ต้องมี 3 ตัวร่วมกับที่กรอก</span>
       </div>
       <div class="prize-input-group">
-        <label>5 ตัวโต๊ดบน (ถูก 4 ใน 5)</label>
+        <label>5 ตัวโต๊ดบน (ถูก 3 ใน 5)</label>
         <input type="text" id="prize_5" maxlength="5" placeholder="เช่น 12345" oninput="this.value=this.value.replace(/\D/g,'').slice(0,5)">
-        <span class="digit-hint">🔍 แทง 5ตัว ต้องมี 4 ตัวร่วมกับที่กรอก</span>
+        <span class="digit-hint">🔍 แทง 5ตัว ต้องมี 3 ตัวร่วมกับที่กรอก</span>
       </div>
     </div>
     <div class="flex gap-8 flex-wrap">
@@ -3067,10 +3067,10 @@ function renderPrizeResult(bills, cfg) {
           }
         }
       } else if (type === '5tod') {
-        // ถูก 4 ใน 5: เลขที่ลูกค้าแทง (5 หลัก) ต้องมีหลักร่วมกับ prize_5 อย่างน้อย 4 ตัว
+        // ถูก 3 ใน 5: เลขที่ลูกค้าแทง (5 หลัก) ต้องมีหลักร่วมกับ prize_5 อย่างน้อย 3 ตัว
         if (cfg.v5 && num.length === 5) {
           const overlap = digitOverlap(cfg.v5, num);
-          if (overlap >= 4) {
+          if (overlap >= 3) {
             const betAmt = item.priceMain || 0;
             const payRate = Number(ag.pay5tod) || 0;
             wonAmt = betAmt * payRate;
