@@ -4312,7 +4312,7 @@ window.showPage = function(id) {
     if ((hasName || hasRows) && !confirm('⚠️ มีข้อมูลที่ยังไม่ได้บันทึก\n\nออกจากหน้านี้จะทำให้ข้อมูลที่กรอกไว้หายไป\nต้องการออกไหม?')) {
       return;  // หยุดไว้ ไม่เปลี่ยนหน้า
     }
-  }
+  };
 
 // ดึงสถานะชำระล่าสุดจาก server แล้ว re-render เสมอ
 function syncPaymentStatusThenRender() {
