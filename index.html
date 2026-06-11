@@ -4301,20 +4301,7 @@ window.showPage = function(id) {
   // ===== ทุกครั้งที่เปิดหน้าสรุป ให้ sync สถานะชำระจาก server ใหม่ =====
   if (id === 'p3') syncPaymentStatusThenRender();
 };
- // ===== แจ้งเตือนถ้ากำลังออกจากหน้า 2 และมีข้อมูลที่ยังไม่บันทึก =====
-  var currentPage = document.querySelector('.page.active');
-  if (currentPage && currentPage.id === 'p2' && id !== 'p2') {
-    var hasName = (document.getElementById('c_name') ? document.getElementById('c_name').value.trim() : '') !== '';
-    var hasRows = ['3top','2top','2bot','4tod','5tod','runtop','runbot'].some(function(t) {
-      var el = document.getElementById('rows_' + t);
-      return el && el.children.length > 0;
-    });
-    if ((hasName || hasRows) && !confirm('⚠️ มีข้อมูลที่ยังไม่ได้บันทึก\n\nออกจากหน้านี้จะทำให้ข้อมูลที่กรอกไว้หายไป\nต้องการออกไหม?')) {
-      return;  // หยุดไว้ ไม่เปลี่ยนหน้า
-    }
-  };
-
-// ดึงสถานะชำระล่าสุดจาก server แล้ว re-render เสมอ
+ // ดึงสถานะชำระล่าสุดจาก server แล้ว re-render เสมอ
 function syncPaymentStatusThenRender() {
   google.script.run
     .withSuccessHandler(function(r) {
