@@ -2680,7 +2680,8 @@ function renderSummary() {
     const summaryFooter = `
       <div class="summary-card" style="border:2px solid rgba(245,197,24,0.3);margin-top:8px;">
         <div class="card-title" style="margin-bottom:12px;">📊 สรุปยอดรวมทั้งหมด</div>
-        ${fRow('ยอดรับรวมทั้งหมด', grandTotalBetAfterComm, 'var(--gold)')}
+        ${fRow('ยอดรับรวมก่อนหักค่าขนม', grandTotalBet, 'var(--gold)')}
+        ${fRow('ยอดรับรวมหลังหักค่าขนม', grandTotalBetAfterComm, 'var(--gold)')}
         ${grandTotalCommission > 0 ? fRow('ค่าขนม (รวมทุกลูกค้า)', grandTotalCommission, 'var(--green)') : ''}
         ${fRow('ยอดหักบิลถูกลูกค้า', grandTotalDeduct, 'var(--green)')}
         ${fRow('ยอดลูกค้าชำระล่วงหน้า', grandTotalPrepaid, '#4d8fff')}
