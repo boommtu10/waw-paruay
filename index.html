@@ -1280,7 +1280,7 @@
       <button class="summary-tab" onclick="switchSummary('agent',this)">🏢 แยกตามเจ้าที่ส่ง</button>
       <button class="summary-tab" onclick="switchSummary('all',this)">📊 สรุปทั้งหมด</button>
       <button class="summary-tab" onclick="switchSummary('profit',this)">💰 สรุปกำไร</button>
-      <button class="summary-tab" onclick="switchSummary('commission',this)" style="grid-column:1/-1;background:rgba(159,122,234,0.15);color:var(--purple);border:1px solid rgba(159,122,234,0.4);">🤝 ตัวแทน (ค่าขนม)</button>
+      <button class="summary-tab" onclick="switchSummary('commission',this)" style="grid-column:1/-1;background:rgba(159,122,234,0.15);color:var(--purple);border:1px solid rgba(159,122,234,0.4);">🤝 ตัวแทน (แบ่ง %)</button>
     </div>
   </div>
 
@@ -2572,9 +2572,9 @@ function renderSummary() {
       }).join('');
 
       const headerColor = hasPrize ? (displayPayable === 0 ? 'var(--green)' : displayPayable < total ? 'var(--green)' : 'var(--gold)') : 'var(--gold)';
-      const headerLabel = commDeduct > 0 ? 'ยอดหลังหักค่าขนม' : (hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม');
+      const headerLabel = commDeduct > 0 ? 'ยอดหลังหักแบ่ง %' : (hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม');
       const subLine = commDeduct > 0
-        ? `<div style="font-size:10px;color:var(--green);">หัก ${commDeduct.toLocaleString('th-TH')} ฿ (ค่าขนม)</div>`
+        ? `<div style="font-size:10px;color:var(--green);">หัก ${commDeduct.toLocaleString('th-TH')} ฿ (แบ่ง %)</div>`
         : (hasPrize && netPayable < total ? `<div style="font-size:10px;color:var(--text2);">ยอดแทง ${total.toLocaleString('th-TH')} ฿</div>` : '');
 
       // ===== ปุ่ม รอชำระ / ชำระแล้ว =====
@@ -2623,7 +2623,7 @@ function renderSummary() {
     const allCustBills = summaryData['customerBills'] || {};
     const savedIdsF = window._savedBillIds || new Set();
     let grandTotalBet = 0, grandTotalDeduct = 0, grandTotalPrepaid = 0, grandTotalDirect = 0;
-    let grandTotalCommission = 0; // รวมค่าขนมทุกลูกค้า
+    let grandTotalCommission = 0; // รวมแบ่ง %ทุกลูกค้า
 
     Object.keys(allCustData).forEach(function(cname) {
       const cTotal = typeof allCustData[cname] === 'object' ? allCustData[cname].total : (allCustData[cname] || 0);
@@ -2658,7 +2658,7 @@ function renderSummary() {
           if (pr) { cNetPayable += pr.netTransfer >= 0 ? 0 : Math.abs(pr.netTransfer); }
           else { cNetPayable += Math.max(0, (b.total || 0) - _adjN); }
         });
-        // หักค่าขนมออกจากยอดที่ลูกค้าจ่ายจริงด้วย
+        // หักแบ่ง %ออกจากยอดที่ลูกค้าจ่ายจริงด้วย
         const cNetPayableAfterComm = Math.max(0, cNetPayable - cCommDeduct);
         if (cNetPayableAfterComm > 0) {
           if (cTransfer === 'direct') grandTotalDirect += cNetPayableAfterComm;
@@ -2667,7 +2667,7 @@ function renderSummary() {
       }
     });
 
-    // ยอดรับรวมหลังหักค่าขนมทั้งหมด
+    // ยอดรับรวมหลังหักแบ่ง %ทั้งหมด
     const grandTotalBetAfterComm = Math.max(0, grandTotalBet - grandTotalCommission);
     // สูตร: ยอดหักบิลถูกลูกค้า + ยอดลูกค้าชำระล่วงหน้า + ยอดรวมโอนตรงเจ้า = ยอดชำระมาแล้ว
     const grandTotalPaid = grandTotalDeduct + grandTotalPrepaid + grandTotalDirect;
@@ -2680,9 +2680,9 @@ function renderSummary() {
     const summaryFooter = `
       <div class="summary-card" style="border:2px solid rgba(245,197,24,0.3);margin-top:8px;">
         <div class="card-title" style="margin-bottom:12px;">📊 สรุปยอดรวมทั้งหมด</div>
-        ${fRow('ยอดรับรวมก่อนหักค่าขนม', grandTotalBet, 'var(--gold)')}
-        ${fRow('ยอดรับรวมหลังหักค่าขนม', grandTotalBetAfterComm, 'var(--gold)')}
-        ${grandTotalCommission > 0 ? fRow('ค่าขนม (รวมทุกลูกค้า)', grandTotalCommission, 'var(--green)') : ''}
+        ${fRow('ยอดรับรวมก่อนหักแบ่ง %', grandTotalBet, 'var(--gold)')}
+        ${fRow('ยอดรับรวมหลังหักแบ่ง %', grandTotalBetAfterComm, 'var(--gold)')}
+        ${grandTotalCommission > 0 ? fRow('แบ่ง % (รวมทุกลูกค้า)', grandTotalCommission, 'var(--green)') : ''}
         ${fRow('ยอดหักบิลถูกลูกค้า', grandTotalDeduct, 'var(--green)')}
         ${fRow('ยอดลูกค้าชำระล่วงหน้า', grandTotalPrepaid, '#4d8fff')}
         ${grandTotalDirect > 0 ? fRow('ยอดรวมโอนตรงเจ้า', grandTotalDirect, 'var(--purple)') : ''}
@@ -3461,8 +3461,8 @@ async function exportAllNotifyImages() {
 }
 
 function buildNotifyWrapper(name, amount, period, info, text, commDeduct) {
-  // amount  = ยอดรวมก่อนหักค่าขนม (gross)
-  // commDeduct = ค่าขนม (ยอดหัก %)
+  // amount  = ยอดรวมก่อนหักแบ่ง % (gross)
+  // commDeduct = แบ่ง % (ยอดหัก %)
   // netAmount  = ยอดชำระจริง
   const deduct = commDeduct || 0;
   const netAmount = Math.max(0, amount - deduct);
@@ -3473,7 +3473,7 @@ function buildNotifyWrapper(name, amount, period, info, text, commDeduct) {
       <span style="font-family:'Kanit',sans-serif;font-size:15px;font-weight:700;color:#e0e0e0;">${amount.toLocaleString('th-TH')} บาท</span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a45;">
-      <span style="font-size:14px;color:#39d98a;font-weight:700;">ค่าขนม</span>
+      <span style="font-size:14px;color:#39d98a;font-weight:700;">แบ่ง %</span>
       <span style="font-family:'Kanit',sans-serif;font-size:15px;font-weight:700;color:#39d98a;">${deduct.toLocaleString('th-TH')} บาท</span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 4px;">
@@ -5783,7 +5783,7 @@ function confirmRefundCust(custName) {
   markCustUnpaid(custName);
 }
 
-// ==================== ตัวแทน (Commission / ค่าขนม) ====================
+// ==================== ตัวแทน (Commission / แบ่ง %) ====================
 // State: { "period::custName": [ {agentName, billCount, total, pct, deduct, netPayable}, ... ] }
 // key = period + "::" + custName  เพื่อแยกได้ทุกงวด
 window._commData = window._commData || {};   // state ใน session ปัจจุบัน
@@ -5850,7 +5850,7 @@ function renderCommissionTab() {
   // ---- ส่วนค้นหา + เพิ่ม ----
   const searchBar = `
     <div class="summary-card" style="margin-bottom:12px;">
-      <div class="card-title" style="margin-bottom:10px;color:var(--purple);">🤝 ตัวแทน — หักค่าขนม (%)</div>
+      <div class="card-title" style="margin-bottom:10px;color:var(--purple);">🤝 ตัวแทน — หักแบ่ง %</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px;">เลือกชื่อตัวแทน (จากรายชื่อลูกค้า) และเจ้าที่ส่ง แล้วกด + เพิ่ม</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
         ${dlCust}${dlAgent}
@@ -5916,7 +5916,7 @@ function renderCommissionTab() {
               <th style="padding:6px 8px;text-align:center;">จำนวนบิล</th>
               <th style="padding:6px 8px;text-align:right;">ยอดรวม (เฉพาะเจ้า)</th>
               <th style="padding:6px 8px;text-align:left;">เจ้าที่ส่ง</th>
-              <th style="padding:6px 8px;text-align:center;">% ค่าขนม</th>
+              <th style="padding:6px 8px;text-align:center;">% แบ่ง %</th>
               <th style="padding:6px 8px;text-align:right;">ยอดหัก %</th>
               <th style="padding:6px 8px;text-align:right;">ยอดค้างหลังหัก %</th>
               <th style="padding:4px;"></th>
