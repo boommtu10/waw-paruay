@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2314,6 +2313,8 @@ function submitBill() {
             }
           });
           try { localStorage.setItem('_agentBillCounters', JSON.stringify(window._agentBillCounters)); } catch(e) {}
+          // sync ตัวนับขึ้น server เพื่อให้ทุกเครื่องใช้ค่าเดียวกัน
+          google.script.run.saveAgentBillCounters(window._agentBillCounters);
         }
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
@@ -4336,6 +4337,8 @@ function _confirmClearPeriod() {
           localStorage.removeItem('_prizeBillResults');
           localStorage.removeItem('_prizeChecked');
         } catch(e) {}
+        // sync reset ตัวนับขึ้น server ด้วย
+        google.script.run.saveAgentBillCounters({});
         // โหลดเจ้าที่ส่งใหม่ (งวดที่ลบไปจะหายจากรายการ/ดรอปดาวน์)
         loadAgents();
       } else {
@@ -4401,6 +4404,16 @@ window.addEventListener('DOMContentLoaded', function() {
       })
       .withFailureHandler(function() { /* ใช้ค่า default 0 */ })
       .getBillCount();
+    // sync agentBillCounters จาก server เพื่อให้ตัวนับ K1/K2... ต่อเนื่องข้ามเครื่อง
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r && r.success && r.data) {
+          window._agentBillCounters = r.data;
+          try { localStorage.setItem('_agentBillCounters', JSON.stringify(r.data)); } catch(e) {}
+        }
+      })
+      .withFailureHandler(function() { /* ใช้ค่าจาก localStorage */ })
+      .getAgentBillCounters();
     // sync commission จาก server (ข้ามเครื่อง)
     loadAgentCommission(null);
   }, 300);
@@ -6158,7 +6171,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwdtjcF-eUIsOpR-8uR_PeULVflUJB7XZ33WuLgqVEotEmJ8iOHOMQrTRENlMd5UcMk/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzotFB7uhsQi7UUfK83oc8nZwC9eDw40YkoemXrVEqP4gKBck-cIN4w42d3g4GvAizH/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
