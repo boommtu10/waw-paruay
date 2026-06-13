@@ -2102,6 +2102,8 @@ function showBillPreview() {
   if (!cPeriod) { toast('กรุณาเลือกงวดวันที่', 'error');   document.getElementById('c_period').focus(); return; }
 
   if (!checkPassed) { checkBills(false); return; }
+  // รีเฟรช agents ก่อนเสมอ ป้องกันชื่อย่อ (shortName) ที่แก้ไขล่าสุดไม่อัปเดตใน Export
+  loadAgents();
   const { customerName, period, agentGroups } = collectBillData();
   if (!customerName) { toast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
 
@@ -2197,7 +2199,7 @@ function showBillPreview() {
       .withFailureHandler(function() {
         _renderBillModal((window._billCounter || 0) + 1);
       })
-      .getBillCount();
+      .getBillCount(period);
   } catch(e) {
     _renderBillModal((window._billCounter || 0) + 1);
   }
@@ -2298,7 +2300,7 @@ function submitBill() {
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
         google.script.run
           .withSuccessHandler(function(cr) { if (cr && cr.success) window._billCounter = cr.count; })
-          .getBillCount();
+          .getBillCount(bd.period);
         closeBillModal();
         clearCustomerForm();
       } else {
@@ -2354,11 +2356,16 @@ function loadSummary() {
         summaryData['agent'] = r.agent;
         summaryData['all'] = r.all;
         // ===== โหลด prizeChecked จาก server เพื่อ sync ข้ามเครื่อง =====
-        // ถ้างวดนี้มีบิลที่บันทึกผลรางวัลแล้ว ให้ set _prizeChecked = true ทุกเครื่อง
-        if (r.prizeChecked) {
-          window._prizeChecked = true;
-          try { localStorage.setItem('_prizeChecked', '1'); } catch(e) {}
-        }
+        // sync ตามงวดที่กำลังดูอยู่จริง: ถ้างวดนี้ยังไม่บันทึกผลรางวัล (ข้ามงวดใหม่)
+        // ต้อง "ปลดล็อค" ด้วย ไม่ใช่ set true อย่างเดียว
+        window._prizeChecked = !!r.prizeChecked;
+        try {
+          if (window._prizeChecked) {
+            localStorage.setItem('_prizeChecked', '1');
+          } else {
+            localStorage.removeItem('_prizeChecked');
+          }
+        } catch(e) {}
         // ===== โหลด custPaymentStatus จาก server เพื่อ sync ข้ามเครื่อง =====
         if (r.custPaymentStatus) {
           window._custPaymentStatus = r.custPaymentStatus;
@@ -4980,6 +4987,13 @@ function parseAndFill() {
             // ลูกค้าพิมพ์ T มาเอง (เช่น 426 100T100) → ใช้ T ตรงๆ
             xtMode = 'T';
           } else if (price.sep === 'x') {
+            // กรณีพิเศษ: ลูกค้าพิมพ์ "เลข ราคาxราคา6" เช่น 612 = 20x6
+            // หมายถึงซื้อกลับทุกตำแหน่ง (6 ชุด) ไม่ใช่ ตรง*โต๊ด → ไม่แปลงเป็น T
+            if (price.p2 === 6) {
+              xtMode = 'X';
+              p2 = 6;
+              log.push('🔁 เลข "' + num + '" รูปแบบ x6 — ถือเป็นซื้อกลับทุกตำแหน่ง (โต๊ด x6) ไม่แปลงเป็น T');
+            } else {
             // x หรือ * หรือ / → ถือว่าเป็น T (ตรง*โต๊ด) เสมอ
             xtMode = 'T';
             // ตรวจเลขซ้ำ: ถ้ามีตัวซ้ำ → บังคับ X และ p2=3
@@ -4989,7 +5003,7 @@ function parseAndFill() {
               xtMode = 'X';
               p2 = 3;
             }
-          }
+            }
           // sep === '' = ราคาเดียว ใช้ T ตามปกติ (ไม่ตรวจเลขซ้ำ เพราะไม่มีราคาโต๊ด)
           fillRow('3top', num, p1, xtMode, p2, false);
           return;
@@ -6071,7 +6085,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzjhJl2RE2_gYjtWjtSzo6dJsBVWtYRwQKIOrQX3NygT66NRp5SVKj-shI7k8tbaGwK/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwg6q5v8gu4QZ5dC0h6t44F0GtT4OkOrIx0UlDxMRgPPGhFA9pjkCFYuEyurRC41z8q/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
