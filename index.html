@@ -1893,7 +1893,7 @@ function addRow(type) {
     <span class="banned-warning" id="warn_${id}"></span>
     <select class="ban-agent-select" id="altAgent_${id}" style="display:none;" onchange="reAssignRow('${id}')">
       <option value="">เลือกเจ้าอื่น</option>
-      ${agents.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}
+      ${(function(){ const per = dateToPeriod(document.getElementById('c_period').value.trim()); return agents.filter(a=>!per||a.period===per); })().map(a=>`<option value="${a.id}">${a.name}</option>`).join('')}
     </select>
     <span class="remove-row" onclick="removeRow('${id}','${type}')">×</span>
   `;
@@ -4958,7 +4958,8 @@ function parseAndFill() {
     html += '<span class="banned-warning" id="warn_' + id + '"></span>';
     html += '<select class="ban-agent-select" id="altAgent_' + id + '" style="display:none;" onchange="reAssignRow(\'' + id + '\')">';
     html += '<option value="">เลือกเจ้าอื่น</option>';
-    agents.forEach(function(a) { html += '<option value="' + a.id + '">' + a.name + '</option>'; });
+    var _perAlt = dateToPeriod(document.getElementById('c_period').value.trim());
+    agents.filter(function(a){ return !_perAlt || a.period === _perAlt; }).forEach(function(a) { html += '<option value="' + a.id + '">' + a.name + '</option>'; });
     html += '</select>';
     html += '<span class="remove-row" onclick="removeRow(\'' + id + '\',\'' + type + '\')">×</span>';
     div.innerHTML = html;
