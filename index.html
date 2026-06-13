@@ -2056,6 +2056,7 @@ function collectBillData() {
   const mainAgent = agents.find(a => a.id === mainAgentId);
 
   const agentGroups = {};
+  const agentIds = {};
   const types = ['3top','2top','2bot','4tod','5tod','runtop','runbot'];
 
   types.forEach(type => {
@@ -2068,6 +2069,7 @@ function collectBillData() {
       const agentId = row.dataset.altAgent || mainAgentId;
       const agent = agents.find(a => a.id === agentId) || mainAgent;
       const agentName = agent ? agent.name : '?';
+      if (!agentIds[agentName]) agentIds[agentName] = agentId;
 
       if (!agentGroups[agentName]) agentGroups[agentName] = [];
       let item = { agentName, type, number: num, priceMain: p1, priceTod: 0, xOrT: '', totalPrice: 0, note: '' };
@@ -2090,7 +2092,7 @@ function collectBillData() {
     });
   });
 
-  return { customerName, period, agentGroups };
+  return { customerName, period, agentGroups, agentIds };
 }
 
 function showBillPreview() {
@@ -2105,7 +2107,7 @@ function showBillPreview() {
   if (!checkPassed) { checkBills(false); return; }
   // รีเฟรช agents ก่อนเสมอ ป้องกันชื่อย่อ (shortName) ที่แก้ไขล่าสุดไม่อัปเดตใน Export
   loadAgents();
-  const { customerName, period, agentGroups } = collectBillData();
+  const { customerName, period, agentGroups, agentIds } = collectBillData();
   if (!customerName) { toast('กรุณากรอกชื่อลูกค้า', 'error'); return; }
 
   // sync bill counter จาก server ก่อนแสดง modal เสมอ
@@ -2117,7 +2119,7 @@ function showBillPreview() {
     const items = agentGroups[agentName];
     let agentTotal = 0;
     // หาชื่อย่อและเลขบิลของเจ้านี้
-    const agentObj = agents.find(function(a){ return a.name === agentName; });
+    const agentObj = agents.find(function(a){ return a.id === agentIds[agentName]; }) || agents.find(function(a){ return a.name === agentName; });
     const sn = agentObj && agentObj.shortName ? agentObj.shortName : '';
     const agentBillNum = sn ? ((window._agentBillCounters[sn] || 0) + 1) : '';
     const agentLabel = sn ? `${agentName}(${sn}${agentBillNum})` : agentName;
@@ -2187,7 +2189,7 @@ function showBillPreview() {
 
   document.getElementById('billPreviewContent').innerHTML = html;
   document.getElementById('billModal').classList.add('show');
-  window._pendingBillData = { customerName, period, agentGroups, grandTotal };
+  window._pendingBillData = { customerName, period, agentGroups, agentIds, grandTotal };
   } // end _renderBillModal
 
   // ดึงจำนวนบิลจริงจาก server ก่อนแสดง modal เสมอ
@@ -2289,7 +2291,7 @@ function submitBill() {
         const bd2 = window._pendingBillData;
         if (bd2 && bd2.agentGroups) {
           Object.keys(bd2.agentGroups).forEach(function(agentName) {
-            const agObj = agents.find(function(a){ return a.name === agentName; });
+            const agObj = agents.find(function(a){ return a.id === (bd2.agentIds && bd2.agentIds[agentName]); }) || agents.find(function(a){ return a.name === agentName; });
             const sn = agObj && agObj.shortName ? agObj.shortName : '';
             if (sn) {
               window._agentBillCounters[sn] = (window._agentBillCounters[sn] || 0) + 1;
@@ -5105,7 +5107,7 @@ function exportBillImages() {
     const items = bd.agentGroups[agentName];
 
     // หาชื่อย่อและเลขบิลของเจ้านี้
-    const agentObj = agents.find(function(a){ return a.name === agentName; });
+    const agentObj = agents.find(function(a){ return a.id === (bd.agentIds && bd.agentIds[agentName]); }) || agents.find(function(a){ return a.name === agentName; });
     const sn = agentObj && agentObj.shortName ? agentObj.shortName : '';
     const agentBillNum = sn ? ((window._agentBillCounters[sn] || 0) + 1) : billNum;
     const agentCode = sn ? `${sn}${agentBillNum}` : '';
