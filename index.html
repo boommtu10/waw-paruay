@@ -2206,17 +2206,39 @@ function showBillPreview() {
   window._pendingBillData = { customerName, period, agentGroups, agentIds, grandTotal };
   } // end _renderBillModal
 
-  // ดึงจำนวนบิลจริงจาก server ก่อนแสดง modal เสมอ
+  // ดึงจำนวนบิลรวม + ตัวนับเลขรันของแต่ละเจ้า (ชื่อย่อ) จาก server ก่อนแสดง modal เสมอ
+  // เพื่อให้เลข K1/K2/... ตรงกันทุกเครื่อง ไม่ใช้ค่า cache เก่าจากตอนโหลดหน้าเว็บ
   try {
+    let _previewSyncPending = 2;
+    const _finishPreviewSync = function() {
+      _previewSyncPending--;
+      if (_previewSyncPending <= 0) {
+        _renderBillModal((window._billCounter || 0) + 1);
+      }
+    };
+
     google.script.run
       .withSuccessHandler(function(cr) {
         window._billCounter = (cr && cr.success) ? cr.count : (window._billCounter || 0);
-        _renderBillModal(window._billCounter + 1);
+        _finishPreviewSync();
       })
       .withFailureHandler(function() {
-        _renderBillModal((window._billCounter || 0) + 1);
+        _finishPreviewSync();
       })
       .getBillCount(period);
+
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r && r.success && r.data) {
+          window._agentBillCounters = r.data;
+          try { localStorage.setItem('_agentBillCounters', JSON.stringify(r.data)); } catch(e) {}
+        }
+        _finishPreviewSync();
+      })
+      .withFailureHandler(function() {
+        _finishPreviewSync();
+      })
+      .getAgentBillCounters();
   } catch(e) {
     _renderBillModal((window._billCounter || 0) + 1);
   }
@@ -2301,19 +2323,28 @@ function submitBill() {
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '✅ บันทึก'; }
       if (r && r.success) {
         window._billCounter = (window._billCounter || 0) + 1;
-        // อัปเดตตัวนับบิลแยกตามชื่อย่อเจ้าที่ส่ง
+        // เก็บรายชื่อย่อของเจ้าทั้งหมดในบิลนี้ (ใช้บวกตัวนับ K1/K2/... แบบ atomic ที่ server)
         const bd2 = window._pendingBillData;
+        const shortNamesInBill = [];
         if (bd2 && bd2.agentGroups) {
           Object.keys(bd2.agentGroups).forEach(function(agentName) {
             const agObj = agents.find(function(a){ return a.id === (bd2.agentIds && bd2.agentIds[agentName]); }) || agents.find(function(a){ return a.name === agentName; });
             const sn = agObj && agObj.shortName ? agObj.shortName : '';
-            if (sn) {
-              window._agentBillCounters[sn] = (window._agentBillCounters[sn] || 0) + 1;
-            }
+            if (sn) shortNamesInBill.push(sn);
           });
-          try { localStorage.setItem('_agentBillCounters', JSON.stringify(window._agentBillCounters)); } catch(e) {}
-          // sync ตัวนับขึ้น server เพื่อให้ทุกเครื่องใช้ค่าเดียวกัน
-          google.script.run.saveAgentBillCounters(window._agentBillCounters);
+        }
+        if (shortNamesInBill.length) {
+          // บวกตัวนับที่ server แบบ atomic (มี lock กันชนกันข้ามเครื่อง)
+          // แล้วรับค่าตัวนับ "ทั้งก้อน" ล่าสุดกลับมา sync เก็บไว้ในเครื่องนี้
+          google.script.run
+            .withSuccessHandler(function(cres) {
+              if (cres && cres.success && cres.data) {
+                window._agentBillCounters = cres.data;
+                try { localStorage.setItem('_agentBillCounters', JSON.stringify(cres.data)); } catch(e) {}
+              }
+            })
+            .withFailureHandler(function() { /* เครื่องอื่นจะ sync ให้ตอนเปิด preview ครั้งถัดไป */ })
+            .incrementAgentBillCounters(shortNamesInBill);
         }
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
@@ -6170,7 +6201,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxlOCFYxGU3PZZcVdTUz-teFk4TsWEj3BMlN0bV9e4x-er7StRa1KLAgRe5dToGOWq8/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwoEklWFc7P8b5WBGZJ9kNi_FLZcDtJK3Eyfk2DXfXhaxm4V188qWsoEU7rkCutbYNe/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
