@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2550,8 +2551,8 @@ function renderSummary() {
         else { netPayable += Math.max(0, (b.total || 0) - _adjN); }
       });
 
-      // ถ้ากดปุ่ม "รอชำระ" แล้ว → แสดงยอดเป็น 0
-      const custPayStatus = (window._custPaymentStatus || {})[name];
+      // ถ้ากดปุ่ม "รอชำระ" แล้ว → แสดงยอดเป็น 0 (เฉพาะของงวดนี้เท่านั้น)
+      const custPayStatus = (window._custPaymentStatus || {})[_payKey(name)];
       const autoCleared = hasPrize && netPayable === 0;
       if (custPayStatus === 'paid' && !autoCleared) netPayable = 0;
 
@@ -2705,9 +2706,9 @@ function renderSummary() {
         const pr = pm[b.billId];
         if (pr) grandTotalDeduct += pr.betTotal;
       });
-      // แยกยอดชำระตามประเภท: โอนเข้าเรา vs โอนตรงเจ้า
-      const cStatus = (window._custPaymentStatus || {})[cname];
-      const cTransfer = (window._custTransferType || {})[cname] || 'self';
+      // แยกยอดชำระตามประเภท: โอนเข้าเรา vs โอนตรงเจ้า (สถานะแยกตามงวด)
+      const cStatus = (window._custPaymentStatus || {})[_payKey(cname)];
+      const cTransfer = (window._custTransferType || {})[_payKey(cname)] || 'self';
       if (cStatus === 'paid') {
         let cNetPayable = 0;
         cBills.forEach(function(b) {
@@ -5818,6 +5819,12 @@ function applyDeductAndSave() {
 if (!window._custPaymentStatus)  window._custPaymentStatus  = {};
 if (!window._custTransferType)   window._custTransferType   = {}; // 'self' | 'direct'
 
+// คีย์สถานะชำระ ต้องแยกตาม "งวด" เหมือน _commKey (มิฉะนั้นสถานะ "ชำระแล้ว"
+// ของงวดก่อนจะค้างมาทำให้บิลใหม่ของงวดถัดไปถูกมองว่าชำระแล้วไปด้วย — ยอดจะเป็น 0 ทั้งที่ยังไม่จ่าย)
+function _payKey(custName) {
+  return getPeriodLabel() + '::' + custName;
+}
+
 // เปิด popup ถามประเภทการโอนก่อนบันทึก
 function confirmCustPayType(custName) {
   // สร้าง modal ถ้ายังไม่มี
@@ -5858,8 +5865,9 @@ function markCustPaid(custName, transferType) {
   if (!window._custPaymentStatus) window._custPaymentStatus = {};
   if (!window._custTransferType)  window._custTransferType  = {};
 
-  window._custPaymentStatus[custName] = 'paid';
-  window._custTransferType[custName]  = transferType || 'self';
+  const _pk = _payKey(custName);
+  window._custPaymentStatus[_pk] = 'paid';
+  window._custTransferType[_pk]  = transferType || 'self';
 
   try {
     localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus));
@@ -5885,8 +5893,9 @@ function markCustPaid(custName, transferType) {
 function markCustUnpaid(custName) {
   if (!window._custPaymentStatus) window._custPaymentStatus = {};
   if (!window._custTransferType)  window._custTransferType  = {};
-  delete window._custPaymentStatus[custName];
-  delete window._custTransferType[custName];
+  const _pk = _payKey(custName);
+  delete window._custPaymentStatus[_pk];
+  delete window._custTransferType[_pk];
   // อัปเดต localStorage
   try {
     localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus));
