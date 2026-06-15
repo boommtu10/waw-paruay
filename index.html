@@ -22,20 +22,20 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&family=Kanit:wght@400;600;700;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --gold: #f5c518;
-    --gold2: #e6a800;
-    --dark: #0a0a0f;
+    --gold: #d99a00;
+    --gold2: #b87f00;
+    --dark: #3a2f1c;
     --dark2: #fdf8ee;
-    --dark3: #1c1c2e;
-    --surface: #1e1e30;
-    --surface2: #252540;
-    --border: #2e2e50;
-    --text: #e8e8f5;
-    --text2: #a0a0c0;
-    --red: #ff4d6d;
-    --green: #39d98a;
-    --blue: #4d8fff;
-    --purple: #9f7aea;
+    --dark3: #fffdf6;
+    --surface: #ffffff;
+    --surface2: #f6efdc;
+    --border: #e8dcc0;
+    --text: #3a2f1c;
+    --text2: #8a7a5c;
+    --red: #d6334d;
+    --green: #1f9d6b;
+    --blue: #2f6fdb;
+    --purple: #7a52c9;
     --radius: 12px;
     --radius-sm: 8px;
   }
@@ -43,8 +43,7 @@
   body {
   font-family: 'Sarabun', sans-serif;
 
-  background:
-    radial-gradient(circle at top,#1a1a2e 0%,#0a0a0f 55%);
+  background: #fdf8ee;
 
   color: var(--text);
 
@@ -55,7 +54,7 @@
 
   /* ===== HEADER ===== */
   .app-header {
-    background: linear-gradient(135deg, #0d0d18 0%, #fdf8ee 60%, #1a1a2e 100%);
+    background: linear-gradient(135deg, #fffdf6 0%, #fdf8ee 60%, #f6efdc 100%);
     border-bottom: 2px solid var(--gold);
     padding: 0 24px;
     display: flex;
@@ -64,7 +63,7 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 4px 30px rgba(245,197,24,0.18);
+    box-shadow: 0 4px 30px rgba(217,154,0,0.15);
     min-height: 60px;
   }
   .header-center-btn {
@@ -89,7 +88,7 @@
     align-items: center;
     justify-content: center;
     font-size: 20px;
-    box-shadow: 0 2px 12px rgba(245,197,24,0.4);
+    box-shadow: 0 2px 12px rgba(217,154,0,0.35);
     flex-shrink: 0;
   }
   .app-logo-text {
@@ -118,14 +117,14 @@
   right: 0;
   z-index: 999;
 
-  background: rgba(15,15,25,.96);
+  background: rgba(255,253,246,.96);
   backdrop-filter: blur(12px);
 
   display: grid;
   grid-template-columns: repeat(5,1fr);
 
   padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
-  border-top: 1px solid rgba(255,255,255,.08);
+  border-top: 1px solid var(--border);
 
   gap: 6px;
   margin-left: 0;
@@ -178,14 +177,14 @@
     white-space: nowrap;
   }
   .nav-tab:hover {
-    background: rgba(245,197,24,0.08);
+    background: rgba(217,154,0,0.08);
     color: var(--gold);
-    border-color: rgba(245,197,24,0.2);
+    border-color: rgba(217,154,0,0.2);
   }
   .nav-tab.active {
-    background: rgba(245,197,24,0.15);
+    background: rgba(217,154,0,0.15);
     color: var(--gold);
-    border-color: rgba(245,197,24,0.35);
+    border-color: rgba(217,154,0,0.35);
   }
   .tab-icon { font-size: 15px; }
   /* Give body enough bottom padding on desktop */
@@ -200,10 +199,10 @@
 
   /* ===== CARD ===== */
   .card {
-  background: rgba(30,30,48,.92);
+  background: rgba(255,255,255,.85);
   backdrop-filter: blur(12px);
 
-  border: 1px solid rgba(255,255,255,.05);
+  border: 1px solid var(--border);
 
   border-radius: 22px;
 
@@ -212,8 +211,8 @@
   margin-bottom: 20px;
 
   box-shadow:
-    0 10px 30px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.03);
+    0 10px 30px rgba(217,154,0,.08),
+    inset 0 1px 0 rgba(255,255,255,.5);
 }
   .card-title {
     font-family: 'Kanit', sans-serif;
@@ -357,7 +356,7 @@
   .badge-4tod { background: rgba(245,197,24,0.2); color: var(--gold); border: 1px solid var(--gold); }
   .badge-5tod { background: rgba(245,197,24,0.15); color: var(--gold2); border: 1px solid var(--gold2); }
   .badge-runtop { background: rgba(255,77,109,0.2); color: var(--red); border: 1px solid var(--red); }
-  .badge-runbot { background: rgba(255,77,109,0.15); color: #ff8fa3; border: 1px solid #ff8fa3; }
+  .badge-runbot { background: rgba(255,77,109,0.15); color: #d6334d; border: 1px solid #d6334d; }
 
   .lotto-rows { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
   .lotto-row {
@@ -458,9 +457,9 @@
   font-size:15px;
   font-weight:700;
 
-  background:#171726;
+  background:#ffffff;
 
-  border:1px solid rgba(255,255,255,.08);
+  border:1px solid var(--border);
 
   color: var(--text2);
 
@@ -478,19 +477,19 @@
 }
 
   .summary-card{
-  background: linear-gradient(180deg,#1b1b2d,#171725);
+  background: #ffffff;
 
   border-radius:24px;
 
   padding:18px;
 
-  border:1px solid rgba(255,255,255,.06);
+  border:1px solid var(--border);
 
   margin-bottom:16px;
 
   box-shadow:
-    0 10px 30px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.04);
+    0 10px 30px rgba(217,154,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.5);
 }
   .summary-card .sc-header {
     display: flex;
@@ -551,7 +550,7 @@
   .loading {
     display: inline-block;
     width: 16px; height: 16px;
-    border: 2px solid rgba(255,255,255,0.2);
+    border: 2px solid rgba(0,0,0,0.1);
     border-top-color: var(--gold);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
@@ -738,9 +737,9 @@
 } /* end @media(max-width:768px) */
 
  .agent-card {
-  background: linear-gradient(180deg,#1b1b2d,#171725);
+  background: #ffffff;
 
-  border: 1px solid rgba(255,255,255,.06);
+  border: 1px solid var(--border);
 
   border-radius: 24px;
 
@@ -758,8 +757,8 @@
   overflow: hidden;
 
   box-shadow:
-    0 10px 30px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.03);
+    0 10px 30px rgba(217,154,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.5);
 }
   .agent-card::before {
     content: '';
@@ -990,16 +989,16 @@
 }
 
 .prize-box{
-  background: linear-gradient(180deg,#1a1a2b,#131320);
-  border:1px solid rgba(255,255,255,.06);
+  background: #ffffff;
+  border:1px solid var(--border);
 
   border-radius:22px;
 
   padding:18px;
 
   box-shadow:
-    0 8px 30px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.04);
+    0 8px 30px rgba(217,154,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.5);
 }
 </style>
 </head>
@@ -2543,7 +2542,7 @@ function renderSummary() {
           billHeaderTotal = nt >= 0 ? 0 : Math.abs(nt);
           if (nt > 0) billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:var(--green);font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — โอน ${nt.toLocaleString('th-TH')} ฿ | ยอดสุทธิ = 0</div>`;
           else if (nt === 0) billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:var(--text2);">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — หักลบเสมอกัน | ยอดสุทธิ = 0</div>`;
-          else billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:#ff6464;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — ค้างชำระ ${Math.abs(nt).toLocaleString('th-TH')} ฿</div>`;
+          else billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:#d6334d;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — ค้างชำระ ${Math.abs(nt).toLocaleString('th-TH')} ฿</div>`;
         }
 
         const byAgent = {};
@@ -2568,7 +2567,7 @@ function renderSummary() {
               const strikeKey = b.billId + '_' + it.number;
               const isStruck = (window._strikeNumbers || {})[strikeKey];
               if (isStruck) {
-                rows += `<div style="font-size:13px;padding:2px 0;text-decoration:line-through;text-decoration-color:#ff4444;text-decoration-thickness:2px;opacity:0.6;">${line}</div>`;
+                rows += `<div style="font-size:13px;padding:2px 0;text-decoration:line-through;text-decoration-color:#d6334d;text-decoration-thickness:2px;opacity:0.6;">${line}</div>`;
               } else {
                 rows += `<div style="font-size:13px;padding:2px 0;">${line}</div>`;
               }
@@ -2579,7 +2578,7 @@ function renderSummary() {
           agentHtml += rows;
         });
 
-        const billHeaderColor = pr ? (billHeaderTotal === 0 ? 'var(--green)' : '#ff6464') : 'var(--gold)';
+        const billHeaderColor = pr ? (billHeaderTotal === 0 ? 'var(--green)' : '#d6334d') : 'var(--gold)';
         const billHeaderLbl = pr ? (billHeaderTotal === 0 ? 'ยอดสุทธิ = 0' : 'ค้างชำระ') : '';
 
         return `
@@ -3496,54 +3495,54 @@ function buildNotifyWrapper(name, amount, period, info, text, commDeduct) {
   const netAmount = Math.max(0, amount - deduct);
 
   const breakdownHtml = deduct > 0 ? `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a45;">
-      <span style="font-size:14px;color:#999;">ยอดรวม</span>
-      <span style="font-family:'Kanit',sans-serif;font-size:15px;font-weight:700;color:#e0e0e0;">${amount.toLocaleString('th-TH')} บาท</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e8dcc0;">
+      <span style="font-size:14px;color:#8a7a5c;">ยอดรวม</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:15px;font-weight:700;color:#3a2f1c;">${amount.toLocaleString('th-TH')} บาท</span>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2a45;">
-      <span style="font-size:14px;color:#39d98a;font-weight:700;">แบ่ง %</span>
-      <span style="font-family:'Kanit',sans-serif;font-size:15px;font-weight:700;color:#39d98a;">${deduct.toLocaleString('th-TH')} บาท</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #e8dcc0;">
+      <span style="font-size:14px;color:#1f9d6b;font-weight:700;">แบ่ง %</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:15px;font-weight:700;color:#1f9d6b;">${deduct.toLocaleString('th-TH')} บาท</span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 4px;">
-      <span style="font-size:14px;color:#ccc;font-weight:700;">ยอดชำระจริง</span>
-      <span style="font-family:'Kanit',sans-serif;font-size:32px;font-weight:900;color:#ff4d6d;line-height:1.1;">${netAmount.toLocaleString('th-TH')} บาท</span>
+      <span style="font-size:14px;color:#5a4a30;font-weight:700;">ยอดชำระจริง</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:32px;font-weight:900;color:#d6334d;line-height:1.1;">${netAmount.toLocaleString('th-TH')} บาท</span>
     </div>
   ` : `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
-      <span style="font-size:13px;color:#888;">ยอดชำระจริง</span>
-      <span style="font-family:'Kanit',sans-serif;font-size:32px;font-weight:900;color:#ff4d6d;line-height:1.1;">${amount.toLocaleString('th-TH')} บาท</span>
+      <span style="font-size:13px;color:#8a7a5c;">ยอดชำระจริง</span>
+      <span style="font-family:'Kanit',sans-serif;font-size:32px;font-weight:900;color:#d6334d;line-height:1.1;">${amount.toLocaleString('th-TH')} บาท</span>
     </div>
   `;
 
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#fdf8ee; color:#e0e0e0;
+    background:#fdf8ee; color:#3a2f1c;
     font-family:'Sarabun','Kanit',sans-serif;
     font-size:15px; padding:24px; width:480px;
     border-radius:14px; line-height:2;
   `;
   wrapper.innerHTML = `
-    <div style="border-bottom:2px solid #f5c518;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
-      <div style="font-family:'Kanit',sans-serif;font-size:20px;font-weight:900;color:#f5c518;">📣 แจ้งยอดชำระ</div>
-      <div style="font-size:12px;color:#666;">ระบบวาว พารวย</div>
+    <div style="border-bottom:2px solid #d99a00;padding-bottom:12px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-family:'Kanit',sans-serif;font-size:20px;font-weight:900;color:#b87f00;">📣 แจ้งยอดชำระ</div>
+      <div style="font-size:12px;color:#8a7a5c;">ระบบวาว พารวย</div>
     </div>
-    <div style="font-size:22px;font-weight:900;color:#f5c518;margin-bottom:4px;">${name}</div>
-    <div style="font-size:13px;color:#888;margin-bottom:18px;">งวดวันที่ ${period}</div>
-    <div style="background:#1c1c2e;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #2e2e50;">
-      <div style="font-size:13px;color:#888;margin-bottom:10px;">ยอดที่ต้องชำระ</div>
+    <div style="font-size:22px;font-weight:900;color:#b87f00;margin-bottom:4px;">${name}</div>
+    <div style="font-size:13px;color:#8a7a5c;margin-bottom:18px;">งวดวันที่ ${period}</div>
+    <div style="background:#ffffff;border-radius:10px;padding:16px;margin-bottom:16px;border:1px solid #e8dcc0;">
+      <div style="font-size:13px;color:#8a7a5c;margin-bottom:10px;">ยอดที่ต้องชำระ</div>
       ${breakdownHtml}
     </div>
-    <div style="background:#1c1c2e;border-radius:10px;padding:16px;border:1px solid #2e2e50;line-height:1.9;">
-      <div style="font-size:12px;color:#888;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">ข้อมูลบัญชี</div>
-      <div><span style="color:#888;font-size:13px;">เลขบัญชี</span> <span style="font-weight:700;font-size:16px;letter-spacing:1px;">${info.accno}</span></div>
-      <div><span style="color:#888;font-size:13px;">ธนาคาร</span> <span style="font-weight:700;">${info.bank}</span></div>
-      <div><span style="color:#888;font-size:13px;">ชื่อบัญชี</span> <span style="font-weight:700;">${info.accname}</span></div>
+    <div style="background:#ffffff;border-radius:10px;padding:16px;border:1px solid #e8dcc0;line-height:1.9;">
+      <div style="font-size:12px;color:#8a7a5c;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">ข้อมูลบัญชี</div>
+      <div><span style="color:#8a7a5c;font-size:13px;">เลขบัญชี</span> <span style="font-weight:700;font-size:16px;letter-spacing:1px;color:#3a2f1c;">${info.accno}</span></div>
+      <div><span style="color:#8a7a5c;font-size:13px;">ธนาคาร</span> <span style="font-weight:700;color:#3a2f1c;">${info.bank}</span></div>
+      <div><span style="color:#8a7a5c;font-size:13px;">ชื่อบัญชี</span> <span style="font-weight:700;color:#3a2f1c;">${info.accname}</span></div>
     </div>
-    <div style="margin-top:14px;background:rgba(255,77,109,0.1);border:1px solid rgba(255,77,109,0.3);border-radius:8px;padding:12px;font-size:14px;color:#ff8fa3;text-align:center;">
-      ⏰ กรุณาชำระภายในวันที่ <span style="font-weight:900;color:#ff4d6d;font-size:16px;">${info.duedate}</span>
-      <div><span style="font-weight:900;color:#ff4d6d;font-size:16px;">*** รบกวนเคลียร์ยอดเก่า ก่อนส่งบิลใหม่ นะคะ ***</span>
-      <div><span style="wai-hands:font-weight:900;color:#ff4d6d;font-size:16px;">🙏ขอบคุณค่ะ🙏</span></div>
+    <div style="margin-top:14px;background:rgba(214,51,77,0.08);border:1px solid rgba(214,51,77,0.3);border-radius:8px;padding:12px;font-size:14px;color:#d6334d;text-align:center;">
+      ⏰ กรุณาชำระภายในวันที่ <span style="font-weight:900;color:#d6334d;font-size:16px;">${info.duedate}</span>
+      <div><span style="font-weight:900;color:#d6334d;font-size:16px;">*** รบกวนเคลียร์ยอดเก่า ก่อนส่งบิลใหม่ นะคะ ***</span>
+      <div><span style="font-weight:900;color:#d6334d;font-size:16px;">🙏ขอบคุณค่ะ🙏</span></div>
     </div>`;
   return wrapper;
 }
@@ -3622,7 +3621,7 @@ function exportBillImage(billId, customerName, period) {
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#fdf8ee; color:#e0e0e0;
+    background:#fdf8ee; color:#3a2f1c;
     font-family:'Kanit','Sarabun',sans-serif;
     font-size:14px; padding:20px; width:480px;
     border-radius:12px; line-height:1.7;
@@ -3630,19 +3629,19 @@ function exportBillImage(billId, customerName, period) {
 
   // Header
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f5c518;';
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #d99a00;';
   header.innerHTML = `
     <div>
-      <div style="font-size:18px;font-weight:900;color:#f5c518;">🏆 ถูกรางวัล!</div>
-      <div style="font-size:13px;color:#aaa;margin-top:2px;">${customerName} &nbsp;|&nbsp; งวด ${period}</div>
+      <div style="font-size:18px;font-weight:900;color:#b87f00;">🏆 ถูกรางวัล!</div>
+      <div style="font-size:13px;color:#8a7a5c;margin-top:2px;">${customerName} &nbsp;|&nbsp; งวด ${period}</div>
     </div>
-    <div style="font-size:11px;color:#666;">วาว พารวย</div>`;
+    <div style="font-size:11px;color:#8a7a5c;">วาว พารวย</div>`;
   wrapper.appendChild(header);
   wrapper.appendChild(clone);
 
   // Footer
   const footer = document.createElement('div');
-  footer.style.cssText = 'margin-top:12px;padding-top:8px;border-top:1px solid #333;text-align:center;font-size:11px;color:#555;';
+  footer.style.cssText = 'margin-top:12px;padding-top:8px;border-top:1px solid #e8dcc0;text-align:center;font-size:11px;color:#8a7a5c;';
   footer.textContent = 'ระบบวาว พารวย — ยินดีด้วย! 🎉';
   wrapper.appendChild(footer);
 
@@ -4028,7 +4027,7 @@ function buildExportWrapperForCustomer(name, bills, period, prizeMap) {
     else { netPayable += b.total || 0; }
   });
 
-  const totalColor = hasPrize ? (netPayable === 0 ? '#39d98a' : '#f5c518') : '#f5c518';
+  const totalColor = hasPrize ? (netPayable === 0 ? '#1f9d6b' : '#b87f00') : '#b87f00';
   const totalLabel = hasPrize ? 'ยอดค้างชำระ' : 'ยอดรวม';
 
   // แถวรายการบิลย่อ (แสดงแค่เลขบิล + ยอด ไม่มี detail)
@@ -4037,18 +4036,18 @@ function buildExportWrapperForCustomer(name, bills, period, prizeMap) {
     const _adj2 = (window._billTotalAdjust || {})[b.billId] || 0;
     let billTotal = Math.max(0, (b.total || 0) - _adj2);
     let billLabel = 'ยอดสุทธิ';
-    let billColor = '#f5c518';
+    let billColor = '#b87f00';
     if (pr) {
       const nt = pr.netTransfer;
       billTotal = nt >= 0 ? 0 : Math.abs(nt);
       billLabel = nt >= 0 ? (nt > 0 ? 'โอนคืน' : 'เสมอ') : 'ค้างชำระ';
-      billColor = nt >= 0 ? '#39d98a' : '#ff6464';
+      billColor = nt >= 0 ? '#1f9d6b' : '#d6334d';
     }
-    const bg = bi % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent';
+    const bg = bi % 2 === 0 ? 'rgba(217,154,0,0.05)' : 'transparent';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:${bg};border-radius:6px;">
-      <span style="color:#aaa;font-size:13px;">บิลที่ ${bi+1}</span>
+      <span style="color:#8a7a5c;font-size:13px;">บิลที่ ${bi+1}</span>
       <div style="text-align:right;">
-        <span style="font-size:10px;color:#666;margin-right:6px;">${billLabel}</span>
+        <span style="font-size:10px;color:#8a7a5c;margin-right:6px;">${billLabel}</span>
         <span style="font-size:14px;font-weight:700;color:${billColor};">${billTotal.toLocaleString('th-TH')} ฿</span>
       </div>
     </div>`;
@@ -4057,28 +4056,28 @@ function buildExportWrapperForCustomer(name, bills, period, prizeMap) {
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#fdf8ee; color:#e0e0e0;
+    background:#fdf8ee; color:#3a2f1c;
     font-family:'Kanit','Sarabun',sans-serif;
     font-size:14px; padding:20px; width:480px;
     border-radius:12px; line-height:1.6;
   `;
   wrapper.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:2px solid #f5c518;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;border-bottom:2px solid #d99a00;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="font-size:18px;">👤</span>
         <div>
-          <div style="font-size:20px;font-weight:900;color:#f5c518;line-height:1.2;">${name}</div>
-          <div style="font-size:12px;color:#888;margin-top:2px;">งวด ${period} &nbsp;|&nbsp; <span style="background:rgba(245,197,24,0.15);color:#f5c518;border:1px solid rgba(245,197,24,0.3);border-radius:20px;padding:1px 8px;font-size:11px;">${bills.length} บิล</span></div>
+          <div style="font-size:20px;font-weight:900;color:#b87f00;line-height:1.2;">${name}</div>
+          <div style="font-size:12px;color:#8a7a5c;margin-top:2px;">งวด ${period} &nbsp;|&nbsp; <span style="background:rgba(217,154,0,0.12);color:#b87f00;border:1px solid rgba(217,154,0,0.3);border-radius:20px;padding:1px 8px;font-size:11px;">${bills.length} บิล</span></div>
         </div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:10px;color:#888;margin-bottom:2px;">${totalLabel}</div>
+        <div style="font-size:10px;color:#8a7a5c;margin-bottom:2px;">${totalLabel}</div>
         <div style="font-size:26px;font-weight:900;color:${totalColor};line-height:1.1;">${netPayable.toLocaleString('th-TH')} ฿</div>
-        ${hasPrize && netPayable < totalBet ? `<div style="font-size:10px;color:#666;">ยอดแทง ${totalBet.toLocaleString('th-TH')} ฿</div>` : ''}
+        ${hasPrize && netPayable < totalBet ? `<div style="font-size:10px;color:#8a7a5c;">ยอดแทง ${totalBet.toLocaleString('th-TH')} ฿</div>` : ''}
       </div>
     </div>
     <div style="margin-bottom:10px;">${billListHtml}</div>
-    <div style="padding-top:8px;border-top:1px solid #222;text-align:center;font-size:11px;color:#444;">ระบบวาว พารวย</div>
+    <div style="padding-top:8px;border-top:1px solid #e8dcc0;text-align:center;font-size:11px;color:#8a7a5c;">ระบบวาว พารวย</div>
   `;
   return wrapper;
 }
@@ -4094,9 +4093,9 @@ function buildExportWrapperForBill(name, b, billIndex, billCount, period, prizeM
   if (pr) {
     const nt = pr.netTransfer;
     billHeaderTotal = nt >= 0 ? 0 : Math.abs(nt);
-    if (nt > 0) prizeHtml = `<div style="border-top:1px dashed #444;margin-top:8px;padding-top:8px;font-size:13px;color:#39d98a;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — โอน ${nt.toLocaleString('th-TH')} ฿ | ยอดสุทธิ = 0</div>`;
-    else if (nt === 0) prizeHtml = `<div style="border-top:1px dashed #444;margin-top:8px;padding-top:8px;font-size:13px;color:#aaa;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — หักลบเสมอกัน | ยอดสุทธิ = 0</div>`;
-    else prizeHtml = `<div style="border-top:1px dashed #444;margin-top:8px;padding-top:8px;font-size:13px;color:#ff6464;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — ค้างชำระ ${Math.abs(nt).toLocaleString('th-TH')} ฿</div>`;
+    if (nt > 0) prizeHtml = `<div style="border-top:1px dashed #d8c8a8;margin-top:8px;padding-top:8px;font-size:13px;color:#1f9d6b;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — โอน ${nt.toLocaleString('th-TH')} ฿ | ยอดสุทธิ = 0</div>`;
+    else if (nt === 0) prizeHtml = `<div style="border-top:1px dashed #d8c8a8;margin-top:8px;padding-top:8px;font-size:13px;color:#8a7a5c;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — หักลบเสมอกัน | ยอดสุทธิ = 0</div>`;
+    else prizeHtml = `<div style="border-top:1px dashed #d8c8a8;margin-top:8px;padding-top:8px;font-size:13px;color:#d6334d;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — ค้างชำระ ${Math.abs(nt).toLocaleString('th-TH')} ฿</div>`;
   }
 
   const items = b.items || [];
@@ -4111,43 +4110,43 @@ function buildExportWrapperForBill(name, b, billIndex, billCount, period, prizeM
     // ไม่แสดงชื่อเจ้า
     TYPE_ORDER.forEach(function(tp) {
       if (!byType[tp]) return;
-      agHtml += `<div style="color:#888;font-size:12px;margin:4px 0 2px;">— ${TYPE_LABEL[tp]||tp} —</div>`;
+      agHtml += `<div style="color:#8a7a5c;font-size:12px;margin:4px 0 2px;">— ${TYPE_LABEL[tp]||tp} —</div>`;
       byType[tp].forEach(function(it) {
         let line = `${it.number} = ${it.priceMain}`;
         if (it.xOrT) line += ` ${it.xOrT} ${it.priceTod}`;
         line += ` = ${it.totalPrice} บาท`;
-        agHtml += `<div style="font-size:14px;padding:2px 0;">${line}</div>`;
+        agHtml += `<div style="font-size:14px;padding:2px 0;color:#3a2f1c;">${line}</div>`;
       });
     });
     const agTotal = agItems.reduce(function(s,it){ return s+it.totalPrice; },0);
-    agHtml += `<div style="color:#39d98a;font-size:13px;margin-top:4px;margin-bottom:2px;">รวม: ${agTotal.toLocaleString('th-TH')} บาท</div>`;
+    agHtml += `<div style="color:#1f9d6b;font-size:13px;margin-top:4px;margin-bottom:2px;">รวม: ${agTotal.toLocaleString('th-TH')} บาท</div>`;
   });
 
-  const hColor = pr ? (billHeaderTotal === 0 ? '#39d98a' : '#ff6464') : '#f5c518';
+  const hColor = pr ? (billHeaderTotal === 0 ? '#1f9d6b' : '#d6334d') : '#b87f00';
   const hLabel = pr ? (billHeaderTotal === 0 ? 'ยอดสุทธิ = 0' : 'ค้างชำระ') : 'ยอดสุทธิ';
 
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#fdf8ee; color:#e0e0e0;
+    background:#fdf8ee; color:#3a2f1c;
     font-family:'Kanit','Sarabun',sans-serif;
     font-size:14px; padding:20px; width:500px;
     border-radius:12px; line-height:1.7;
   `;
   wrapper.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #f5c518;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #d99a00;">
       <div>
-        <div style="font-size:20px;font-weight:900;color:#f5c518;">👤 ${name}</div>
-        <div style="font-size:12px;color:#aaa;margin-top:2px;">งวด ${period} &nbsp;|&nbsp; บิลที่ ${billIndex+1}/${billCount}</div>
+        <div style="font-size:20px;font-weight:900;color:#b87f00;">👤 ${name}</div>
+        <div style="font-size:12px;color:#8a7a5c;margin-top:2px;">งวด ${period} &nbsp;|&nbsp; บิลที่ ${billIndex+1}/${billCount}</div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:10px;color:#aaa;">${hLabel}</div>
+        <div style="font-size:10px;color:#8a7a5c;">${hLabel}</div>
         <div style="font-size:22px;font-weight:900;color:${hColor};">${billHeaderTotal.toLocaleString('th-TH')} ฿</div>
       </div>
     </div>
-    ${agHtml || '<div style="color:#888;font-size:12px;">ไม่มีรายการ</div>'}
+    ${agHtml || '<div style="color:#8a7a5c;font-size:12px;">ไม่มีรายการ</div>'}
     ${prizeHtml}
-    <div style="margin-top:12px;padding-top:8px;border-top:1px solid #333;text-align:center;font-size:11px;color:#555;">ระบบวาว พารวย</div>
+    <div style="margin-top:12px;padding-top:8px;border-top:1px solid #e8dcc0;text-align:center;font-size:11px;color:#8a7a5c;">ระบบวาว พารวย</div>
   `;
   return wrapper;
 }
@@ -4292,7 +4291,7 @@ function _showClearPeriodPicker(periods) {
           เลือก "งวดวันที่" ที่ต้องการล้างค่า — ระบบจะลบข้อมูลเจ้าที่ส่ง, บิลลูกค้า, รายการเลข
           และประวัติของงวดนั้นทั้งหมด (งวดอื่นไม่ถูกแก้ไข)
         </div>
-        <select id="clearPeriodSelect" style="width:100%;padding:10px;border-radius:8px;background:var(--card-bg);color:#fff;border:1px solid rgba(255,255,255,0.15);margin-bottom:14px;"></select>
+        <select id="clearPeriodSelect" style="width:100%;padding:10px;border-radius:8px;background:var(--dark3);color:var(--text);border:1px solid var(--border);margin-bottom:14px;"></select>
         <div style="display:flex;gap:10px;">
           <button class="btn btn-outline" style="flex:1;" onclick="document.getElementById('clearPeriodModal').classList.remove('show')">ยกเลิก</button>
           <button class="btn btn-red" style="flex:1;" onclick="_confirmClearPeriod()">ล้างค่างวดนี้</button>
@@ -4461,8 +4460,8 @@ function syncPaymentStatusThenRender() {
   if (existing) existing.remove();
   var badge = document.createElement('div');
   badge.id = badgeId;
-  badge.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(255,255,255,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle;"></span>กำลัง sync สถานะ...';
-  badge.style.cssText = 'position:fixed;bottom:calc(74px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(30,30,48,0.92);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text2);z-index:500;white-space:nowrap;pointer-events:none;backdrop-filter:blur(8px);';
+  badge.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border:2px solid rgba(0,0,0,0.1);border-top-color:var(--gold);border-radius:50%;animation:spin 0.6s linear infinite;margin-right:6px;vertical-align:middle;"></span>กำลัง sync สถานะ...';
+  badge.style.cssText = 'position:fixed;bottom:calc(74px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:#ffffff;border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text2);z-index:500;white-space:nowrap;pointer-events:none;backdrop-filter:blur(8px);box-shadow:0 4px 16px rgba(217,154,0,0.1);';
   document.body.appendChild(badge);
 
   google.script.run
@@ -5285,48 +5284,48 @@ function exportBillImages() {
     ctx2.fillRect(0, 0, W, totalH);
 
     // เส้นขอบทอง
-    ctx2.strokeStyle = '#f5c518';
+    ctx2.strokeStyle = '#d99a00';
     ctx2.lineWidth = 2;
     ctx2.strokeRect(1, 1, W - 2, totalH - 2);
 
     let y = PADDING;
     lines.forEach(function(l) {
       if (l.style === 'header') {
-        ctx2.fillStyle = '#f5c518';
+        ctx2.fillStyle = '#b87f00';
         ctx2.font = 'bold 18px Sarabun, sans-serif';
         ctx2.fillText(l.text, PADDING, y + 22);
         y += HEADER_H;
       } else if (l.style === 'subheader') {
-        ctx2.fillStyle = '#a0a0c0';
+        ctx2.fillStyle = '#8a7a5c';
         ctx2.font = '14px Sarabun, sans-serif';
         ctx2.fillText(l.text, PADDING, y + 18);
         // เส้นคั่น
-        ctx2.strokeStyle = '#2e2e50';
+        ctx2.strokeStyle = '#e8dcc0';
         ctx2.lineWidth = 1;
         ctx2.beginPath(); ctx2.moveTo(PADDING, y + 28); ctx2.lineTo(W - PADDING, y + 28); ctx2.stroke();
         y += SUBHEADER_H;
       } else if (l.style === 'spacer') {
         y += SPACER_H;
       } else if (l.style === 'section') {
-        ctx2.fillStyle = '#9f7aea';
+        ctx2.fillStyle = '#7a52c9';
         ctx2.font = 'bold 13px Sarabun, sans-serif';
         ctx2.fillText(l.text, PADDING, y + 20);
         y += LINE_H;
       } else if (l.style === 'total') {
-        ctx2.fillStyle = '#39d98a';
+        ctx2.fillStyle = '#1f9d6b';
         ctx2.font = 'bold 16px Sarabun, sans-serif';
         ctx2.fillText(l.text, PADDING, y + 22);
         y += LINE_H;
       } else {
-        // item — เลขสีขาว ราคาสีทอง
+        // item — เลขสีเข้ม ราคาสีทองเข้ม
         const parts = l.text.split('=');
-        ctx2.fillStyle = '#e8e8f5';
+        ctx2.fillStyle = '#3a2f1c';
         ctx2.font = 'bold 15px monospace, Sarabun';
         ctx2.fillText(parts[0] || l.text, PADDING, y + 21);
         if (parts.length > 1) {
           const priceText = '= ' + parts.slice(1).join('=');
           const numWidth = ctx2.measureText(parts[0]).width;
-          ctx2.fillStyle = '#f5c518';
+          ctx2.fillStyle = '#b87f00';
           ctx2.font = '14px Sarabun, sans-serif';
           ctx2.fillText(priceText, PADDING + numWidth + 4, y + 21);
         }
