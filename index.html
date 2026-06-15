@@ -3518,7 +3518,7 @@ function buildNotifyWrapper(name, amount, period, info, text, commDeduct) {
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#13131f; color:#e0e0e0;
+    background:#fdf8ee; color:#e0e0e0;
     font-family:'Sarabun','Kanit',sans-serif;
     font-size:15px; padding:24px; width:480px;
     border-radius:14px; line-height:2;
@@ -3622,7 +3622,7 @@ function exportBillImage(billId, customerName, period) {
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#13131f; color:#e0e0e0;
+    background:#fdf8ee; color:#e0e0e0;
     font-family:'Kanit','Sarabun',sans-serif;
     font-size:14px; padding:20px; width:480px;
     border-radius:12px; line-height:1.7;
@@ -3666,7 +3666,7 @@ function exportBillImage(billId, customerName, period) {
 
 function doCapture(wrapper, customerName, period) {
   html2canvas(wrapper, {
-    backgroundColor: '#13131f',
+    backgroundColor: '#fdf8ee',
     scale: 2,
     useCORS: true,
     logging: false
@@ -4057,7 +4057,7 @@ function buildExportWrapperForCustomer(name, bills, period, prizeMap) {
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#13131f; color:#e0e0e0;
+    background:#fdf8ee; color:#e0e0e0;
     font-family:'Kanit','Sarabun',sans-serif;
     font-size:14px; padding:20px; width:480px;
     border-radius:12px; line-height:1.6;
@@ -4129,7 +4129,7 @@ function buildExportWrapperForBill(name, b, billIndex, billCount, period, prizeM
   const wrapper = document.createElement('div');
   wrapper.style.cssText = `
     position:fixed; left:-9999px; top:0;
-    background:#13131f; color:#e0e0e0;
+    background:#fdf8ee; color:#e0e0e0;
     font-family:'Kanit','Sarabun',sans-serif;
     font-size:14px; padding:20px; width:500px;
     border-radius:12px; line-height:1.7;
@@ -4156,7 +4156,7 @@ async function captureWrapper(wrapper, filename) {
   document.body.appendChild(wrapper);
   return new Promise(function(resolve, reject) {
     html2canvas(wrapper, {
-      backgroundColor: '#13131f',
+      backgroundColor: '#fdf8ee',
       scale: 2,
       useCORS: true,
       logging: false
