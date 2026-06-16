@@ -1313,16 +1313,9 @@
         <input type="text" id="prize_2bot" maxlength="2" placeholder="เช่น 35" oninput="this.value=this.value.replace(/\D/g,'').slice(0,2)">
         <span class="digit-hint">🔍 หา 2ตัวล่าง + วิ่งล่าง (แต่ละหลัก)</span>
       </div>
-      <div class="prize-input-group">
-        <label>4 ตัวโต๊ดบน (ถูก 3 ใน 4)</label>
-        <input type="text" id="prize_4" maxlength="4" placeholder="เช่น 1234" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
-        <span class="digit-hint">🔍 แทง 4ตัว ต้องมี 3 ตัวร่วมกับที่กรอก</span>
-      </div>
-      <div class="prize-input-group">
-        <label>5 ตัวโต๊ดบน (ถูก 3 ใน 5)</label>
-        <input type="text" id="prize_5" maxlength="5" placeholder="เช่น 12345" oninput="this.value=this.value.replace(/\D/g,'').slice(0,5)">
-        <span class="digit-hint">🔍 แทง 5ตัว ต้องมี 3 ตัวร่วมกับที่กรอก</span>
-      </div>
+    </div>
+    <div style="margin:6px 0 12px;font-size:12px;color:var(--text2);">
+      🔍 4 ตัวโต๊ดบน / 5 ตัวโต๊ดบน ตรวจอิงกับช่อง "3 ตัว" ด้านบน — แทง 4 หรือ 5 หลัก ต้องมีเลข 3 ตัวที่ออกครบทั้ง 3 หลักอยู่ในชุดที่แทง
     </div>
     <div class="flex gap-8 flex-wrap">
       <button class="btn btn-gold" onclick="checkPrizeWinners()">🏆 ตรวจสอบผู้ถูกรางวัล</button>
@@ -2893,7 +2886,7 @@ function clearPrizePage() {
   window._prizeChecked = false;  // reset — อนุญาตลบบิลได้อีกครั้ง
   // ลบค่าที่จำไว้ใน localStorage ด้วย เพราะเริ่มงวดใหม่
   try { localStorage.removeItem('_prizeChecked'); localStorage.removeItem('_savedBillIds'); localStorage.removeItem('_prizeBillResults'); localStorage.removeItem('_custPaymentStatus'); localStorage.removeItem('_custTransferType'); } catch(e) {}
-  ['prize_period','prize_3','prize_2top','prize_2bot','prize_4','prize_5'].forEach(id => {
+  ['prize_period','prize_3','prize_2top','prize_2bot'].forEach(id => {
     document.getElementById(id).value = '';
   });
   document.getElementById('prizeResult').innerHTML = '';
@@ -2935,10 +2928,8 @@ function checkPrizeWinners() {
   const v3    = document.getElementById('prize_3').value.trim();
   const v2top = document.getElementById('prize_2top').value.trim();
   const v2bot = document.getElementById('prize_2bot').value.trim();
-  const v4    = document.getElementById('prize_4').value.trim();
-  const v5    = document.getElementById('prize_5').value.trim();
 
-  // บังคับกรอก 3 ช่องหลัก (ยกเว้น 4ตัวโต๊ด 5ตัวโต๊ด)
+  // บังคับกรอก 3 ช่องหลัก (4ตัวโต๊ด/5ตัวโต๊ด ตรวจอิงกับ "3 ตัว" ด้านบน ไม่มีช่องแยกแล้ว)
   if (!v3)    { toast('กรุณากรอก 3 ตัว (3ตรง + 3โต๊ด)', 'error');    document.getElementById('prize_3').focus();    return; }
   if (v3.length !== 3) { toast('3 ตัว ต้องกรอกครบ 3 หลัก', 'error'); document.getElementById('prize_3').focus(); return; }
   if (!v2top) { toast('กรุณากรอก 2 ตัวบน / วิ่งบน', 'error');        document.getElementById('prize_2top').focus(); return; }
@@ -2946,14 +2937,12 @@ function checkPrizeWinners() {
   if (!v2bot) { toast('กรุณากรอก 2 ตัวล่าง / วิ่งล่าง', 'error');    document.getElementById('prize_2bot').focus(); return; }
   if (v2bot.length !== 2) { toast('2 ตัวล่าง ต้องกรอกครบ 2 หลัก', 'error'); document.getElementById('prize_2bot').focus(); return; }
 
-  if (!v3 && !v2top && !v2bot && !v4 && !v5) {
+  if (!v3 && !v2top && !v2bot) {
     toast('กรุณากรอกเลขที่ออกอย่างน้อย 1 ช่อง', 'error'); return;
   }
   if (v3 && v3.length !== 3) { toast('3 ตัว ต้องกรอกครบ 3 หลัก', 'error'); return; }
   if (v2top && v2top.length !== 2) { toast('2 ตัวบน ต้องกรอกครบ 2 หลัก', 'error'); return; }
   if (v2bot && v2bot.length !== 2) { toast('2 ตัวล่าง ต้องกรอกครบ 2 หลัก', 'error'); return; }
-  if (v4 && v4.length !== 4) { toast('4 ตัวโต๊ดบน ต้องกรอกครบ 4 หลัก', 'error'); return; }
-  if (v5 && v5.length !== 5) { toast('5 ตัวโต๊ดบน ต้องกรอกครบ 5 หลัก', 'error'); return; }
 
   // precompute winner sets
   const straight3Set = v3 ? new Set([v3]) : null;
@@ -2976,7 +2965,7 @@ function checkPrizeWinners() {
         resultEl.innerHTML = '';
         return;
       }
-      renderPrizeResult(r.bills, { v3, v2top, v2bot, v4, v5,
+      renderPrizeResult(r.bills, { v3, v2top, v2bot,
         straight3Set, tod3Set, top2Set, runTopSet, bot2Set, runBotSet });
     })
     .withFailureHandler(function(e) {
@@ -3114,26 +3103,28 @@ function renderPrizeResult(bills, cfg) {
           won = true;
         }
       } else if (type === '4tod') {
-        // ถูก 3 ใน 4: เลขที่ลูกค้าแทง (4 หลัก) ต้องมีหลักร่วมกับ prize_4 อย่างน้อย 3 ตัว
-        if (cfg.v4 && num.length === 4) {
-          const overlap = digitOverlap(cfg.v4, num);
-          if (overlap >= 3) {
+        // เปลี่ยนเงื่อนไข: อิงกับเลข "3 ตัว" (v3) ที่ออก — เลขที่ลูกค้าแทง (4 หลัก)
+        // ต้องมีเลข 3 ตัวที่ออกครบทั้ง 3 หลัก (เป็น sub-multiset) อยู่ในชุดที่แทง
+        if (cfg.v3 && num.length === 4) {
+          const overlap = digitOverlap(cfg.v3, num);
+          if (overlap === cfg.v3.length) {
             const betAmt = item.priceMain || 0;
             const payRate = Number(ag.pay4tod) || 0;
             wonAmt = betAmt * payRate;
-            wonLabel = `4ตัวโต๊ด(${overlap}ใน4) ${betAmt}×${payRate}`;
+            wonLabel = `4ตัวโต๊ด(มี ${cfg.v3} ครบ) ${betAmt}×${payRate}`;
             won = true;
           }
         }
       } else if (type === '5tod') {
-        // ถูก 3 ใน 5: เลขที่ลูกค้าแทง (5 หลัก) ต้องมีหลักร่วมกับ prize_5 อย่างน้อย 3 ตัว
-        if (cfg.v5 && num.length === 5) {
-          const overlap = digitOverlap(cfg.v5, num);
-          if (overlap >= 3) {
+        // เปลี่ยนเงื่อนไข: อิงกับเลข "3 ตัว" (v3) ที่ออก — เลขที่ลูกค้าแทง (5 หลัก)
+        // ต้องมีเลข 3 ตัวที่ออกครบทั้ง 3 หลัก (เป็น sub-multiset) อยู่ในชุดที่แทง
+        if (cfg.v3 && num.length === 5) {
+          const overlap = digitOverlap(cfg.v3, num);
+          if (overlap === cfg.v3.length) {
             const betAmt = item.priceMain || 0;
             const payRate = Number(ag.pay5tod) || 0;
             wonAmt = betAmt * payRate;
-            wonLabel = `5ตัวโต๊ด(${overlap}ใน5) ${betAmt}×${payRate}`;
+            wonLabel = `5ตัวโต๊ด(มี ${cfg.v3} ครบ) ${betAmt}×${payRate}`;
             won = true;
           }
         }
@@ -3797,11 +3788,12 @@ function exportCustomerExcel() {
     let row = 0;
 
     // ===== แถวหัวตาราง =====
-    // คอลัมน์: งวด | [เจ้า1] | [เจ้า2] ... | ยอดรวม | (ถ้ามีรางวัล: ยอดถูกรวม | ยอดสุทธิ | ยอดแทงคงเหลือ)
+    // คอลัมน์: งวด | [เจ้า1] | [เจ้า2] ... | ยอดรวม | (ถ้ามีรางวัล: ยอดถูกรวม | ยอดสุทธิ | ยอดแทงคงเหลือ | แบ่ง % | ยอดชำระจริง)
     const HEADER_BG = '1E3A5F'; // navy
     const HEADER_FG = 'FFFFFF';
     const AGENT_BG  = '2D5016'; // dark green
     const PRIZE_BG  = '7B2D00'; // dark orange
+    const COMM_BG   = '5C2D91'; // purple — คอลัมน์แบ่ง %
 
     setCellVal(ws, row, 0, `งวด ${period}`, { bold:true, color:HEADER_FG, bg:HEADER_BG, align:'center', border:true, sz:12 });
     let col = 1;
@@ -3811,18 +3803,20 @@ function exportCustomerExcel() {
     });
     setCellVal(ws, row, col, 'ยอดรวม', { bold:true, color:HEADER_FG, bg:HEADER_BG, align:'center', border:true });
     const yodRuamCol = col; col++;
-    let yodThuekCol, yodSutthiCol, yodKhangCol;
+    let yodThuekCol, yodSutthiCol, yodKhangCol, commCol, actualPayCol;
     if (hasPrizeData) {
       setCellVal(ws, row, col, 'ยอดถูกรวม',       { bold:true, color:'FFFFFF', bg:PRIZE_BG, align:'center', border:true }); yodThuekCol = col; col++;
       setCellVal(ws, row, col, 'ยอดสุทธิ',         { bold:true, color:'FFFFFF', bg:PRIZE_BG, align:'center', border:true }); yodSutthiCol = col; col++;
       setCellVal(ws, row, col, 'ยอดแทงคงเหลือ',    { bold:true, color:'FFFFFF', bg:PRIZE_BG, align:'center', border:true }); yodKhangCol = col; col++;
+      setCellVal(ws, row, col, 'แบ่ง %',           { bold:true, color:'FFFFFF', bg:COMM_BG,  align:'center', border:true }); commCol = col; col++;
+      setCellVal(ws, row, col, 'ยอดชำระจริง',      { bold:true, color:'FFFFFF', bg:COMM_BG,  align:'center', border:true }); actualPayCol = col; col++;
     }
     updateRange(row, col-1);
     row++;
 
     // ===== แถวข้อมูลลูกค้า =====
     const totalByAgent = {}; agentCols.forEach(function(ag){ totalByAgent[ag]=0; });
-    let grandTotal = 0, grandWin = 0, grandNet = 0, grandRemain = 0;
+    let grandTotal = 0, grandWin = 0, grandNet = 0, grandRemain = 0, grandComm = 0, grandActualPay = 0;
     const ROW_EVEN = 'F5F5F5';
     const ROW_ODD  = 'FFFFFF';
 
@@ -3861,6 +3855,11 @@ function exportCustomerExcel() {
         setCellVal(ws, row, col, custWin,     { bg, border:true, align:'right', color: custWin > 0 ? '006400' : '000000' }); grandWin += custWin; col++;
         setCellVal(ws, row, col, custNet,     { bg, border:true, align:'right', color: custNet >= 0 ? '006400' : 'CC0000' }); grandNet += custNet; col++;
         setCellVal(ws, row, col, custRemain,  { bg, border:true, align:'right', color: custRemain > 0 ? 'CC0000' : '006400' }); grandRemain += custRemain; col++;
+        // แบ่ง % (ถ้ามีตัวแทนหักค่าคอมจากยอดลูกค้านี้) — ไม่มีให้เป็น 0
+        const custCommDeduct = getCommissionDeductForCustomer(custName) || 0;
+        const custActualPay  = Math.max(0, custRemain - custCommDeduct);
+        setCellVal(ws, row, col, custCommDeduct, { bg, border:true, align:'right', color: custCommDeduct > 0 ? '5C2D91' : '000000' }); grandComm += custCommDeduct; col++;
+        setCellVal(ws, row, col, custActualPay,  { bold:true, bg, border:true, align:'right', color: custActualPay > 0 ? 'CC0000' : '006400' }); grandActualPay += custActualPay; col++;
       }
       updateRange(row, col-1);
       row++;
@@ -3879,6 +3878,8 @@ function exportCustomerExcel() {
       setCellVal(ws, row, col, grandWin,    { bold:true, color:'90EE90', bg:TOTAL_BG, border:true, align:'right' }); col++;
       setCellVal(ws, row, col, grandNet,    { bold:true, color: grandNet >= 0 ? '90EE90' : 'FF9999', bg:TOTAL_BG, border:true, align:'right' }); col++;
       setCellVal(ws, row, col, grandRemain, { bold:true, color:'FF9999', bg:TOTAL_BG, border:true, align:'right' }); col++;
+      setCellVal(ws, row, col, grandComm,       { bold:true, color:'D9B8FF', bg:TOTAL_BG, border:true, align:'right' }); col++;
+      setCellVal(ws, row, col, grandActualPay,  { bold:true, color:'FFD700', bg:TOTAL_BG, border:true, align:'right' }); col++;
     }
     updateRange(row, col-1);
 
@@ -3888,7 +3889,7 @@ function exportCustomerExcel() {
     const colWidths = [{ wch: 18 }];
     agentCols.forEach(function(ag){ colWidths.push({ wch: Math.max(ag.length + 2, 14) }); });
     colWidths.push({ wch: 14 }); // ยอดรวม
-    if (hasPrizeData) { colWidths.push({ wch: 14 }); colWidths.push({ wch: 14 }); colWidths.push({ wch: 16 }); }
+    if (hasPrizeData) { colWidths.push({ wch: 14 }); colWidths.push({ wch: 14 }); colWidths.push({ wch: 16 }); colWidths.push({ wch: 12 }); colWidths.push({ wch: 16 }); }
     ws['!cols'] = colWidths;
 
     // freeze แถวหัว
