@@ -2427,6 +2427,16 @@ function loadSummary() {
             .withFailureHandler(function() {})
             .getCustPaymentStatus();
         }
+        // ===== โหลด custTransferType จาก server เพื่อ sync ข้ามเครื่อง =====
+        google.script.run
+          .withSuccessHandler(function(tr) {
+            if (tr && tr.success && tr.data) {
+              window._custTransferType = tr.data;
+              try { localStorage.setItem('_custTransferType', JSON.stringify(window._custTransferType)); } catch(e) {}
+            }
+          })
+          .withFailureHandler(function() {})
+          .getCustTransferType();
       } else {
         console.warn('getAllSummary fail:', r);
         toast('โหลดสรุปล้มเหลว: ' + (r ? r.error : 'ไม่ทราบสาเหตุ'), 'error');
@@ -2720,7 +2730,11 @@ function renderSummary() {
 
     // ยอดรับรวมหลังหักแบ่ง %ทั้งหมด
     const grandTotalBetAfterComm = Math.max(0, grandTotalBet - grandTotalCommission);
-    // สูตร: ยอดหักบิลถูกลูกค้า + ยอดลูกค้าชำระล่วงหน้า + ยอดรวมโอนตรงเจ้า = ยอดชำระมาแล้ว
+    // เก็บไว้ให้ profit tab ดึงไปแสดงเป็นค่าเริ่มต้นในช่อง "แบ่ง %"
+    if (grandTotalCommission > 0 && !window._profitSplitAmtOverridden) {
+      window._profitSplitAmt = grandTotalCommission;
+    }
+    // สูตร: ยอดหักบิลถูกลูกค้า + ยอดโอนเข้าเรา + ยอดโอนตรงเจ้า = ยอดชำระมาแล้ว
     const grandTotalPaid = grandTotalDeduct + grandTotalPrepaid + grandTotalDirect;
     const grandTotalRemain = Math.max(0, grandTotalBetAfterComm - grandTotalPaid);
     const fRow = (label, value, color) =>
@@ -2735,8 +2749,8 @@ function renderSummary() {
         ${fRow('ยอดรับรวมหลังหักแบ่ง %', grandTotalBetAfterComm, 'var(--gold)')}
         ${grandTotalCommission > 0 ? fRow('แบ่ง % (รวมทุกลูกค้า)', grandTotalCommission, 'var(--green)') : ''}
         ${fRow('ยอดหักบิลถูกลูกค้า', grandTotalDeduct, 'var(--green)')}
-        ${fRow('ยอดลูกค้าชำระล่วงหน้า', grandTotalPrepaid, '#4d8fff')}
-        ${grandTotalDirect > 0 ? fRow('ยอดรวมโอนตรงเจ้า', grandTotalDirect, 'var(--purple)') : ''}
+        ${fRow('ยอดโอนเข้าเรา', grandTotalPrepaid, '#4d8fff')}
+        ${fRow('ยอดโอนตรงเจ้า', grandTotalDirect, 'var(--purple)')}
         ${fRow('ยอดชำระมาแล้ว', grandTotalPaid, 'var(--green)')}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;margin-top:4px;">
           <span style="font-size:15px;font-weight:700;color:var(--text);">ยอดคงเหลือ (รอชำระ)</span>
@@ -2873,6 +2887,21 @@ function renderSummary() {
       <div class="sc-header">
         <span class="font-bold text-gold">💰 กำไรรวมทั้งหมด</span>
         <span class="sc-total">${totalProfit.toLocaleString('th-TH')} ฿</span>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+          <span style="font-size:14px;color:var(--text2);">แบ่ง %</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input type="number" id="profitSplitInput" min="0" value="${window._profitSplitAmt || 0}"
+              style="width:110px;padding:4px 8px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:14px;font-family:'Sarabun',sans-serif;text-align:right;"
+              oninput="window._profitSplitAmtOverridden=true; window._profitSplitAmt=Number(this.value)||0; document.getElementById('_netProfit').textContent=(${totalProfit}-Number(this.value)||0).toLocaleString('th-TH')+' ฿'; document.getElementById('_netProfit').style.color=(${totalProfit}-Number(this.value))>=0?'var(--green)':'var(--red)';">
+            <span style="font-size:14px;color:var(--text2);">฿</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;margin-top:2px;">
+          <span style="font-size:15px;font-weight:700;color:var(--text);">กำไรได้จริง</span>
+          <span id="_netProfit" style="font-size:22px;font-weight:900;color:${(totalProfit-(window._profitSplitAmt||0))>=0?'var(--green)':'var(--red)'};font-family:'Kanit',sans-serif;">${(totalProfit-(window._profitSplitAmt||0)).toLocaleString('th-TH')} ฿</span>
+        </div>
       </div>
     </div>`;
     el.innerHTML = html;
@@ -4383,6 +4412,8 @@ function _confirmClearPeriod() {
         window._savedBillIds = new Set();
         window._prizeBillResults = [];
         window._prizeChecked = false;
+        window._profitSplitAmt = 0;
+        window._profitSplitAmtOverridden = false;
         try {
           localStorage.removeItem('_agentBillCounters');
           localStorage.removeItem('_custPaymentStatus');
@@ -5896,7 +5927,8 @@ function markCustPaid(custName, transferType) {
     localStorage.setItem('_custTransferType',  JSON.stringify(window._custTransferType));
   } catch(e) {}
 
-  // ===== sync ลง server =====
+  // ===== sync ลง server (ทั้ง paymentStatus และ transferType) =====
+  var _snapTransfer = JSON.parse(JSON.stringify(window._custTransferType));
   google.script.run
     .withSuccessHandler(function(r) {
       if (r && r.success) {
@@ -5909,6 +5941,7 @@ function markCustPaid(custName, transferType) {
       toast('บันทึกเฉพาะในเครื่อง (ไม่สามารถ sync ได้)', 'warning');
     })
     .saveCustPaymentStatus(window._custPaymentStatus);
+  google.script.run.saveCustTransferType(_snapTransfer);
   renderSummary();
 }
 
@@ -5923,7 +5956,8 @@ function markCustUnpaid(custName) {
     localStorage.setItem('_custPaymentStatus', JSON.stringify(window._custPaymentStatus));
     localStorage.setItem('_custTransferType',  JSON.stringify(window._custTransferType));
   } catch(e) {}
-  // ===== sync ลง server =====
+  // ===== sync ลง server (ทั้ง paymentStatus และ transferType) =====
+  var _snapTransfer2 = JSON.parse(JSON.stringify(window._custTransferType));
   google.script.run
     .withSuccessHandler(function(r) {
       if (r && r.success) {
@@ -5936,6 +5970,7 @@ function markCustUnpaid(custName) {
       toast('คืนยอดเฉพาะในเครื่อง (ไม่สามารถ sync ได้)', 'warning');
     })
     .saveCustPaymentStatus(window._custPaymentStatus);
+  google.script.run.saveCustTransferType(_snapTransfer2);
   renderSummary();
 }
 
