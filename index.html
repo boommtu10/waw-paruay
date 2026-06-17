@@ -4371,8 +4371,8 @@ function _showClearPeriodPicker(periods) {
       <div class="modal" style="max-width:380px;">
         <div class="modal-title">🗑️ ล้างค่างวดก่อนหน้า</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">
-          เลือก "งวดวันที่" ที่ต้องการล้างค่า — ระบบจะลบข้อมูลเจ้าที่ส่ง, บิลลูกค้า, รายการเลข
-          และประวัติของงวดนั้นทั้งหมด (งวดอื่นไม่ถูกแก้ไข)
+          เลือก "งวดวันที่" ที่ต้องการล้างค่า — ระบบจะลบข้อมูลเจ้าที่ส่ง, บิลลูกค้า, รายการเลข ของงวดนั้น
+          (สถิติ/ผลรางวัลที่บันทึกไว้ในหน้า "สถิติ" จะไม่ถูกลบ — งวดอื่นไม่ถูกแก้ไข)
         </div>
         <select id="clearPeriodSelect" style="width:100%;padding:10px;border-radius:8px;background:var(--dark3);color:var(--text);border:1px solid var(--border);margin-bottom:14px;"></select>
         <div style="display:flex;gap:10px;">
@@ -4393,7 +4393,7 @@ function _confirmClearPeriod() {
   const period = document.getElementById('clearPeriodSelect').value;
   if (!period) { toast('กรุณาเลือกงวดวันที่', 'error'); return; }
 
-  if (!confirm('⚠️ ยืนยันล้างค่าทั้งหมดของงวด ' + period + ' ใช่ไหม? (เจ้าที่ส่ง/บิล/รายการเลข/ประวัติของงวดนี้จะถูกลบ)')) return;
+  if (!confirm('⚠️ ยืนยันล้างค่าของงวด ' + period + ' ใช่ไหม? (เจ้าที่ส่ง/บิล/รายการเลขของงวดนี้จะถูกลบ — สถิติที่บันทึกไว้แล้วจะไม่ถูกลบ)')) return;
   if (!confirm('❗ แน่ใจแล้วนะ ข้อมูลงวด ' + period + ' จะถูกลบทั้งหมด กู้คืนไม่ได้')) return;
   if (!confirm('🔴 ยืนยันรอบสุดท้าย นะ นภชนกกกกกกกก — ลบงวด ' + period)) return;
 
@@ -6267,7 +6267,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1R6C3FFy7nUAOqNSl2Y2bTozrtNWyYgYvtzj_W6-XxHNRYkxgA5tbsj85hyVan4WC/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzael2G28x1_2OE22gV_J2i30coilVOBh-J8MAUyuUY0sy3j4hVQ0R_nl61A7Zq7FrZ/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
