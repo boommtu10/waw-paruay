@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2778,16 +2779,24 @@ function renderSummary() {
       const pct = ag.percent || 0;
       const pctRun = ag.percentRun !== undefined ? ag.percentRun : pct;
       const pctLabel = (pctRun !== pct) ? `${pct}% / วิ่ง ${pctRun}%` : `${pct}%`;
+      const agProfit = ag.profit || 0;
+      const agTotal = ag.total || 0;
+      const agTransfer = agTotal - agProfit;
+      const agNameEncoded = encodeURIComponent(name);
       return `
         <div class="summary-card">
           <div class="sc-header">
-            <div class="sc-name">🏢 ${name}</div>
+            <div class="sc-name">🏢 ${name} <button class="btn" style="padding:2px 10px;font-size:11px;background:var(--green);color:#000;margin-left:8px;" onclick="exportSingleAgentExcel(${JSON.stringify(name)})">📊 Export Excel</button></div>
             <div>
-              <span class="sc-total" style="margin-right:8px;">${(ag.total||0).toLocaleString('th-TH')} ฿</span>
-              <span class="profit-badge">กำไร ${(ag.profit||0).toLocaleString('th-TH')} ฿ (${pctLabel})</span>
+              <span class="sc-total" style="margin-right:8px;">${agTotal.toLocaleString('th-TH')} ฿</span>
+              <span class="profit-badge">กำไร ${agProfit.toLocaleString('th-TH')} ฿ (${pctLabel})</span>
             </div>
           </div>
           <div class="sc-rows" style="margin-top:8px;">${billRows}</div>
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;color:var(--text2);">ยอดโอนจ่ายเจ้า</span>
+            <span style="font-size:15px;font-weight:700;color:var(--red);">${agTransfer.toLocaleString('th-TH')} ฿</span>
+          </div>
         </div>`;
     }).join('');
     el.innerHTML = agentExportBar + agentCards;
@@ -2822,19 +2831,27 @@ function renderSummary() {
       const pct = ag.percent || 0;
       const pctRun = ag.percentRun !== undefined ? ag.percentRun : pct;
       const pctLabel = (pctRun !== pct) ? `${pct}% / วิ่ง ${pctRun}%` : `${pct}%`;
+      const agProfit = ag.profit || 0;
+      const agTotal = ag.total || 0;
+      const agTransfer = agTotal - agProfit;
       html += `<div class="summary-card">
         <div class="sc-header">
           <span>🏢 ${name}</span>
           <div>
-            <span class="sc-total" style="margin-right:8px;">${(ag.total||0).toLocaleString('th-TH')} ฿</span>
-            <span class="profit-badge">กำไร ${(ag.profit||0).toLocaleString('th-TH')} ฿ (${pctLabel})</span>
+            <span class="sc-total" style="margin-right:8px;">${agTotal.toLocaleString('th-TH')} ฿</span>
+            <span class="profit-badge">กำไร ${agProfit.toLocaleString('th-TH')} ฿ (${pctLabel})</span>
           </div>
+        </div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2);">ยอดโอนจ่ายเจ้า</span>
+          <span style="font-size:15px;font-weight:700;color:var(--red);">${agTransfer.toLocaleString('th-TH')} ฿</span>
         </div>
       </div>`;
     });
     // ยอดส่งรวม + กำไรรวม
     const totalAgent = Object.values(agentsData).reduce((s,v)=>s+(v.total||0),0);
     const totalProfit2 = Object.values(agentsData).reduce((s,v)=>s+(v.profit||0),0);
+    const totalTransfer2 = totalAgent - totalProfit2;
     html += `<div class="summary-card" style="border-color:var(--gold);">
       <div class="sc-header">
         <span class="font-bold text-gold">📊 ยอดส่งรวม / กำไรรวม</span>
@@ -2842,6 +2859,10 @@ function renderSummary() {
           <span class="sc-total" style="margin-right:8px;">${totalAgent.toLocaleString('th-TH')} ฿</span>
           <span class="profit-badge">+${totalProfit2.toLocaleString('th-TH')} ฿</span>
         </div>
+      </div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;color:var(--text2);">ยอดโอนจ่ายเจ้ารวม</span>
+        <span style="font-size:15px;font-weight:700;color:var(--red);">${totalTransfer2.toLocaleString('th-TH')} ฿</span>
       </div>
     </div>`;
     el.innerHTML = html;
@@ -2875,18 +2896,29 @@ function renderSummary() {
         profitDetail = `<div>ยอดรวม: ${total.toLocaleString('th-TH')} ฿ × ${pct}% = กำไร ${profit.toLocaleString('th-TH')} ฿</div>`;
       }
       const labelPct = (pctRun !== pct && runTotal > 0) ? `${pct}% / วิ่ง ${pctRun}%` : `${pct}%`;
+      const agTransferP = total - profit;
       html += `<div class="summary-card">
         <div class="sc-header">
           <span>🏢 ${name} (${labelPct})</span>
           <span class="profit-badge">+${profit.toLocaleString('th-TH')} ฿</span>
         </div>
         <div class="sc-rows">${profitDetail}</div>
+        <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:var(--text2);">ยอดโอนจ่ายเจ้า</span>
+          <span style="font-size:15px;font-weight:700;color:var(--red);">${agTransferP.toLocaleString('th-TH')} ฿</span>
+        </div>
       </div>`;
     });
+    const totalAgentForProfit = Object.values(agentsData).reduce((s,v)=>s+(v.total||0),0);
+    const totalTransferForProfit = totalAgentForProfit - totalProfit;
     html += `<div class="summary-card" style="border-color:var(--gold);">
       <div class="sc-header">
         <span class="font-bold text-gold">💰 กำไรรวมทั้งหมด</span>
         <span class="sc-total">${totalProfit.toLocaleString('th-TH')} ฿</span>
+      </div>
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:13px;color:var(--text2);">ยอดโอนจ่ายเจ้ารวม</span>
+        <span style="font-size:15px;font-weight:700;color:var(--red);">${totalTransferForProfit.toLocaleString('th-TH')} ฿</span>
       </div>
       <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
@@ -3930,6 +3962,81 @@ function exportCustomerExcel() {
     const suffix = hasPrizeData ? '_หลังตรวจรางวัล' : '_ก่อนตรวจรางวัล';
     XLSX.writeFile(wb, `สรุปยอดลูกค้า_${safePeriod}${suffix}.xlsx`);
     toast(`Export Excel สำเร็จ ✓`, 'success');
+  });
+}
+
+// ===== Export Excel เฉพาะเจ้าที่ส่งรายนั้นๆ (บิลตามลำดับ) =====
+function exportSingleAgentExcel(agentName) {
+  const data = summaryData['agent'];
+  if (!data || !data[agentName]) {
+    toast('ไม่พบข้อมูลเจ้านี้', 'error'); return;
+  }
+  ensureSheetJS(function() {
+    const period = getPeriodLabel();
+    const ag = data[agentName];
+    const bills = ag.bills || [];
+    const ws = {};
+    const range = { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
+    function updateRange(r, c) { if (r > range.e.r) range.e.r = r; if (c > range.e.c) range.e.c = c; }
+
+    const HDR_BG = '1E3A5F';
+    const HDR_FG = 'FFFFFF';
+    const PRF_BG = '0D3B00';
+    const ROW_EVEN = 'F5F5F5';
+    const ROW_ODD  = 'FFFFFF';
+
+    let row = 0;
+    // หัวเรื่อง
+    setCellVal(ws, row, 0, `เจ้าที่ส่ง: ${agentName}  งวด ${period}`, { bold:true, color:HDR_FG, bg:HDR_BG, align:'center', border:true, sz:12 });
+    updateRange(row, 3); row++;
+
+    // หัวตาราง
+    setCellVal(ws, row, 0, 'ลำดับ',      { bold:true, color:HDR_FG, bg:HDR_BG, align:'center', border:true });
+    setCellVal(ws, row, 1, 'ชื่อลูกค้า', { bold:true, color:HDR_FG, bg:HDR_BG, align:'center', border:true });
+    setCellVal(ws, row, 2, 'ยอดรวม (฿)', { bold:true, color:HDR_FG, bg:HDR_BG, align:'center', border:true });
+    updateRange(row, 2); row++;
+
+    let grandTotal = 0;
+    bills.forEach(function(b, idx) {
+      const bg = idx % 2 === 0 ? ROW_EVEN : ROW_ODD;
+      setCellVal(ws, row, 0, idx + 1,             { bg, border:true, align:'center' });
+      setCellVal(ws, row, 1, b.customerName || '', { bg, border:true, align:'left' });
+      setCellVal(ws, row, 2, b.total || 0,         { bg, border:true, align:'right' });
+      updateRange(row, 2);
+      grandTotal += b.total || 0;
+      row++;
+    });
+
+    // แถวรวม
+    setCellVal(ws, row, 0, `รวม ${bills.length} บิล`, { bold:true, color:HDR_FG, bg:HDR_BG, align:'center', border:true });
+    setCellVal(ws, row, 1, '', { bg:HDR_BG, border:true });
+    setCellVal(ws, row, 2, grandTotal, { bold:true, color:'FFD700', bg:HDR_BG, border:true, align:'right' });
+    updateRange(row, 2); row++;
+
+    // แถวกำไร
+    const profit = ag.profit || 0;
+    const pct = ag.percent || 0;
+    const transfer = grandTotal - profit;
+    setCellVal(ws, row, 0, 'กำไร', { bold:true, color:'90EE90', bg:PRF_BG, align:'center', border:true });
+    setCellVal(ws, row, 1, `${pct}%`, { color:'90EE90', bg:PRF_BG, border:true, align:'center' });
+    setCellVal(ws, row, 2, profit, { bold:true, color:'90EE90', bg:PRF_BG, border:true, align:'right' });
+    updateRange(row, 2); row++;
+
+    // แถวยอดโอนจ่ายเจ้า
+    setCellVal(ws, row, 0, 'ยอดโอนจ่ายเจ้า', { bold:true, color:'FF6B6B', bg:'3B0000', align:'center', border:true });
+    setCellVal(ws, row, 1, '', { bg:'3B0000', border:true });
+    setCellVal(ws, row, 2, transfer, { bold:true, color:'FF6B6B', bg:'3B0000', border:true, align:'right' });
+    updateRange(row, 2);
+
+    ws['!ref'] = XLSX.utils.encode_range(range);
+    ws['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 14 }];
+
+    const wb = XLSX.utils.book_new();
+    const sheetTitle = agentName.replace(/[\\/\?\*\[\]:]/g, '-').slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetTitle);
+    const safePeriod = period.replace(/\//g, '-');
+    XLSX.writeFile(wb, `เจ้า_${agentName}_${safePeriod}.xlsx`);
+    toast(`Export Excel เจ้า "${agentName}" สำเร็จ ✓`, 'success');
   });
 }
 
