@@ -2231,7 +2231,7 @@ function showBillPreview() {
       .withFailureHandler(function() {
         _finishPreviewSync();
       })
-      .getAgentBillCounters();
+      .getAgentBillCountersByPeriod(period);
   } catch(e) {
     _renderBillModal((window._billCounter || 0) + 1);
   }
@@ -2337,7 +2337,7 @@ function submitBill() {
               }
             })
             .withFailureHandler(function() { /* เครื่องอื่นจะ sync ให้ตอนเปิด preview ครั้งถัดไป */ })
-            .incrementAgentBillCounters(shortNamesInBill);
+            .incrementAgentBillCounters(shortNamesInBill, bd2.period);
         }
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
@@ -6373,7 +6373,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzael2G28x1_2OE22gV_J2i30coilVOBh-J8MAUyuUY0sy3j4hVQ0R_nl61A7Zq7FrZ/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxbG6UOUzgyR_ab-pJ4D8HCb375cAavGZGicLk3i9RvKslkH7q3j3dTap2sm9hoo-tv/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
