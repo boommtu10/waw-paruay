@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -5597,14 +5598,14 @@ function openDeductModal(customerName, sourceBillId) {
           <input type="radio" name="deductMode" value="3" style="margin-top:3px;width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductModeChange()">
           <div>
             <div style="font-weight:700;font-size:14px;">เงื่อนไขที่ 3 — เลือกบิลแยกตามเจ้าที่ส่ง</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:3px;">รวมยอดแทงทั้งหมดของลูกค้าคนนี้ แยกเป็นก้อนตามเจ้าที่ส่ง เลือกเองว่าจะหักเจ้าไหนบ้าง (รวมข้ามบิลให้อัตโนมัติ)</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:3px;">ดึงทุกบิลของลูกค้าคนนี้ แยกเป็นก้อนตามบิล+เจ้าที่ส่ง เลือกเองว่าจะหักบิลไหนของเจ้าไหนบ้าง (บิลใครบิลมัน ไม่รวมยอดข้ามบิล)</div>
           </div>
         </label>
       </div>
 
       <!-- ตัวเลือกที่ 3: checkbox list -->
       <div id="deductItemPicker" style="display:none;margin-bottom:16px;">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">เลือกเจ้าที่ต้องการนำมาหักยอด:</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">เลือกบิล/เจ้าที่ต้องการนำมาหักยอด:</div>
         <div id="deductItemList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
       </div>
 
@@ -5626,12 +5627,16 @@ function openDeductModal(customerName, sourceBillId) {
   modal._allWinItems = allWinItems;
   modal._customerName = customerName;
 
-  // render item list — จัดกลุ่มตาม "เจ้าที่ส่ง" (agName) รวมยอดข้ามทุกบิลของลูกค้าคนนี้
+  // render item list — จัดกลุ่มตาม "บิล + เจ้าที่ส่ง" (แยกเป็นบิลๆ ไป ไม่รวมยอดข้ามบิล)
+  // เช่น ลูกค้าคนนี้ส่งเจ้า J1 ไว้ 2 บิล (300 กับ 200) → แสดงแยก 2 แถว ไม่ใช่รวมเป็น 500
   const listEl = modal.querySelector('#deductItemList');
-  const agentGroups = {}; // { agName: { total, idxs: [i,...] } }
+  const agentGroups = {}; // { "billId||agName": { billId, billLabel, agName, total, idxs: [i,...] } }
   allWinItems.forEach(function(item, i) {
-    const key = item.agName || '(ไม่ระบุเจ้า)';
-    if (!agentGroups[key]) agentGroups[key] = { total: 0, idxs: [] };
+    const agName = item.agName || '(ไม่ระบุเจ้า)';
+    const key = (item.billId || '') + '||' + agName;
+    if (!agentGroups[key]) {
+      agentGroups[key] = { billId: item.billId, billLabel: item.billLabel || '', agName: agName, total: 0, idxs: [] };
+    }
     const totalPrice = item.totalPrice || ((item.priceMain || 0) + (item.priceTod || 0));
     agentGroups[key].total += totalPrice;
     agentGroups[key].idxs.push(i);
@@ -5640,12 +5645,12 @@ function openDeductModal(customerName, sourceBillId) {
 
   if (Object.keys(agentGroups).length) {
     let listHtml = '';
-    Object.keys(agentGroups).forEach(function(agName) {
-      const g = agentGroups[agName];
+    Object.keys(agentGroups).forEach(function(key) {
+      const g = agentGroups[key];
       listHtml += `<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--dark3);border-radius:6px;cursor:pointer;">
-        <input type="checkbox" value="${agName}" style="width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductItemChange()">
-        <span style="font-weight:700;font-size:14px;">${agName}</span>
-        <span style="font-size:11px;color:var(--text2);">(${g.idxs.length} รายการ ทุกบิล)</span>
+        <input type="checkbox" value="${key}" style="width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductItemChange()">
+        <span style="font-weight:700;font-size:14px;">${customerName} <span style="color:var(--gold);">(${g.agName})</span></span>
+        <span style="font-size:11px;color:var(--text2);">${g.billLabel} · ${g.idxs.length} รายการ</span>
         <span style="margin-left:auto;color:var(--gold);font-weight:700;">${g.total.toLocaleString('th-TH')} ฿</span>
       </label>`;
     });
@@ -5699,13 +5704,13 @@ function calcDeductPreview() {
     deductAmt = allBills.reduce(function(s, b) { return s + (b.betTotal || b.grandTotal || 0); }, 0);
     deductLabel = 'ยอดแทงทั้งหมดของ ' + customerName + ' (' + allBills.length + ' บิล)';
   } else if (mode === '3') {
-    // หักตามเจ้าที่ติ๊กไว้ — รวมยอดรายการเลขทั้งหมดของเจ้านั้น ข้ามทุกบิลของลูกค้าคนนี้
+    // หักตามบิล+เจ้าที่ติ๊กไว้ — แต่ละแถวคือยอดของเจ้านั้นในบิลนั้นๆ เท่านั้น (ไม่รวมข้ามบิล)
     const agentGroups = modal._agentGroups || {};
     const checkboxes = document.querySelectorAll('#deductItemList input[type=checkbox]:checked');
-    const selectedAgents = Array.from(checkboxes).map(function(cb) { return cb.value; });
+    const selectedKeys = Array.from(checkboxes).map(function(cb) { return cb.value; });
     let selectedItems3 = [];
-    selectedAgents.forEach(function(agName) {
-      const g = agentGroups[agName];
+    selectedKeys.forEach(function(key) {
+      const g = agentGroups[key];
       if (!g) return;
       deductAmt += g.total;
       g.idxs.forEach(function(idx) {
@@ -5713,7 +5718,7 @@ function calcDeductPreview() {
         if (it) selectedItems3.push(it);
       });
     });
-    deductLabel = 'ยอดแทงจากเจ้าที่เลือก (' + selectedAgents.length + ' เจ้า)';
+    deductLabel = 'ยอดแทงจากบิล/เจ้าที่เลือก (' + selectedKeys.length + ' รายการ)';
     // เก็บ selectedItems3 ไว้ใช้ตอน save — โค้ดส่วน save จะกระจายกลับไปหักตาม billId ให้เองอัตโนมัติ
     modal._selectedItems3 = selectedItems3;
   }
