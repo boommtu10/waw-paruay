@@ -5596,15 +5596,15 @@ function openDeductModal(customerName, sourceBillId) {
         <label style="display:flex;align-items:flex-start;gap:10px;padding:12px;background:var(--dark3);border-radius:var(--radius-sm);cursor:pointer;border:1.5px solid transparent;" id="opt3_wrap">
           <input type="radio" name="deductMode" value="3" style="margin-top:3px;width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductModeChange()">
           <div>
-            <div style="font-weight:700;font-size:14px;">เงื่อนไขที่ 3 — เลือกชุดตัวเลขที่จะหัก</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:3px;">แสดงทุกบิลของลูกค้า เลือกเองว่าชุดเลขไหนจะนำยอดแทงมาหัก (ข้ามบิลได้)</div>
+            <div style="font-weight:700;font-size:14px;">เงื่อนไขที่ 3 — เลือกบิลแยกตามเจ้าที่ส่ง</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:3px;">รวมยอดแทงทั้งหมดของลูกค้าคนนี้ แยกเป็นก้อนตามเจ้าที่ส่ง เลือกเองว่าจะหักเจ้าไหนบ้าง (รวมข้ามบิลให้อัตโนมัติ)</div>
           </div>
         </label>
       </div>
 
       <!-- ตัวเลือกที่ 3: checkbox list -->
       <div id="deductItemPicker" style="display:none;margin-bottom:16px;">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">เลือกเลขที่ต้องการนำมาหักยอด:</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">เลือกเจ้าที่ต้องการนำมาหักยอด:</div>
         <div id="deductItemList" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
       </div>
 
@@ -5626,29 +5626,28 @@ function openDeductModal(customerName, sourceBillId) {
   modal._allWinItems = allWinItems;
   modal._customerName = customerName;
 
-  // render item list — จัดกลุ่มตามบิล แสดงทุกรายการแทงของลูกค้า
+  // render item list — จัดกลุ่มตาม "เจ้าที่ส่ง" (agName) รวมยอดข้ามทุกบิลของลูกค้าคนนี้
   const listEl = modal.querySelector('#deductItemList');
-  if (allWinItems.length) {
-    // จัดกลุ่มตาม billId
-    const billGroups = {};
-    allWinItems.forEach(function(item, i) {
-      if (!billGroups[item.billId]) billGroups[item.billId] = { label: item.billLabel, rows: [] };
-      billGroups[item.billId].rows.push({ item, i });
-    });
+  const agentGroups = {}; // { agName: { total, idxs: [i,...] } }
+  allWinItems.forEach(function(item, i) {
+    const key = item.agName || '(ไม่ระบุเจ้า)';
+    if (!agentGroups[key]) agentGroups[key] = { total: 0, idxs: [] };
+    const totalPrice = item.totalPrice || ((item.priceMain || 0) + (item.priceTod || 0));
+    agentGroups[key].total += totalPrice;
+    agentGroups[key].idxs.push(i);
+  });
+  modal._agentGroups = agentGroups;
+
+  if (Object.keys(agentGroups).length) {
     let listHtml = '';
-    Object.keys(billGroups).forEach(function(bid) {
-      const g = billGroups[bid];
-      listHtml += `<div style="font-size:11px;color:var(--text2);font-weight:700;margin:6px 0 4px;letter-spacing:1px;">📋 ${g.label}</div>`;
-      g.rows.forEach(function(r) {
-        const it = r.item;
-        const totalPrice = it.totalPrice || (it.priceMain + (it.priceTod || 0));
-        listHtml += `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--dark3);border-radius:6px;cursor:pointer;">
-          <input type="checkbox" value="${r.i}" style="width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductItemChange()">
-          <span style="font-family:monospace;font-size:16px;font-weight:700;">${it.num}</span>
-          <span style="font-size:12px;color:var(--text2);">${it.typeLabel} [${it.agName}]</span>
-          <span style="margin-left:auto;color:var(--gold);font-weight:700;">${totalPrice.toLocaleString('th-TH')} ฿</span>
-        </label>`;
-      });
+    Object.keys(agentGroups).forEach(function(agName) {
+      const g = agentGroups[agName];
+      listHtml += `<label style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--dark3);border-radius:6px;cursor:pointer;">
+        <input type="checkbox" value="${agName}" style="width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductItemChange()">
+        <span style="font-weight:700;font-size:14px;">${agName}</span>
+        <span style="font-size:11px;color:var(--text2);">(${g.idxs.length} รายการ ทุกบิล)</span>
+        <span style="margin-left:auto;color:var(--gold);font-weight:700;">${g.total.toLocaleString('th-TH')} ฿</span>
+      </label>`;
     });
     listEl.innerHTML = listHtml;
   } else {
@@ -5700,15 +5699,22 @@ function calcDeductPreview() {
     deductAmt = allBills.reduce(function(s, b) { return s + (b.betTotal || b.grandTotal || 0); }, 0);
     deductLabel = 'ยอดแทงทั้งหมดของ ' + customerName + ' (' + allBills.length + ' บิล)';
   } else if (mode === '3') {
-    // หักเฉพาะชุดตัวเลขที่เลือก — รวม priceMain+priceTod ของแต่ละ item ที่ติ๊ก
+    // หักตามเจ้าที่ติ๊กไว้ — รวมยอดรายการเลขทั้งหมดของเจ้านั้น ข้ามทุกบิลของลูกค้าคนนี้
+    const agentGroups = modal._agentGroups || {};
     const checkboxes = document.querySelectorAll('#deductItemList input[type=checkbox]:checked');
-    const selectedIdxs = Array.from(checkboxes).map(function(cb) { return parseInt(cb.value); });
-    const selectedItems3 = selectedIdxs.map(function(idx) { return allWinItems[idx]; }).filter(Boolean);
-    selectedItems3.forEach(function(it) {
-      deductAmt += it.totalPrice || ((it.priceMain || 0) + (it.priceTod || 0));
+    const selectedAgents = Array.from(checkboxes).map(function(cb) { return cb.value; });
+    let selectedItems3 = [];
+    selectedAgents.forEach(function(agName) {
+      const g = agentGroups[agName];
+      if (!g) return;
+      deductAmt += g.total;
+      g.idxs.forEach(function(idx) {
+        const it = allWinItems[idx];
+        if (it) selectedItems3.push(it);
+      });
     });
-    deductLabel = 'ยอดแทงจากชุดที่เลือก (' + selectedIdxs.length + ' รายการ)';
-    // เก็บ selectedItems3 ไว้ใช้ตอน save
+    deductLabel = 'ยอดแทงจากเจ้าที่เลือก (' + selectedAgents.length + ' เจ้า)';
+    // เก็บ selectedItems3 ไว้ใช้ตอน save — โค้ดส่วน save จะกระจายกลับไปหักตาม billId ให้เองอัตโนมัติ
     modal._selectedItems3 = selectedItems3;
   }
 
