@@ -5705,7 +5705,7 @@ function calcDeductPreview() {
     const selectedIdxs = Array.from(checkboxes).map(function(cb) { return parseInt(cb.value); });
     const selectedItems3 = selectedIdxs.map(function(idx) { return allWinItems[idx]; }).filter(Boolean);
     selectedItems3.forEach(function(it) {
-      deductAmt += (it.priceMain || 0) + (it.priceTod || 0);
+      deductAmt += it.totalPrice || ((it.priceMain || 0) + (it.priceTod || 0));
     });
     deductLabel = 'ยอดแทงจากชุดที่เลือก (' + selectedIdxs.length + ' รายการ)';
     // เก็บ selectedItems3 ไว้ใช้ตอน save
