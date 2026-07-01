@@ -3102,6 +3102,17 @@ function renderPrizeResult(bills, cfg) {
             wonAmt = betAmt * payRate;
             wonLabel = `3ตัวตรง ${betAmt}×${payRate}`;
             won = true;
+            // ถูกตรงเป๊ะ = เข้าเงื่อนไขถูกโต๊ดอัตโนมัติด้วย (เฉพาะ type '3top' ที่มีราคาโต๊ดวางไว้คู่กัน)
+            // ไม่ต้องรอเช็ค tod3Set เพราะ tod3Set ไม่รวมเลขที่ตรงเป๊ะอยู่แล้ว
+            if (type === '3top') {
+              const todBetAmt = item.priceTod || 0;
+              if (todBetAmt > 0) {
+                const todPayRate = Number(ag.pay3tod) || 0;
+                const todExtra = todBetAmt * todPayRate;
+                wonLabel += ` + 3ตัวโต๊ด ${todBetAmt}×${todPayRate}`;
+                wonAmt += todExtra;
+              }
+            }
           }
           // ตรวจ 3 ตัวโต๊ด
           if (cfg.tod3Set && cfg.tod3Set.has(num)) {
@@ -3358,7 +3369,8 @@ function renderPrizeResult(bills, cfg) {
         typeLabel: TYPE_LABEL_MAP2[it.type] || it.type,
         agName: it.agentName,
         priceMain: it.priceMain || 0,
-        priceTod: it.priceTod || 0
+        priceTod: it.priceTod || 0,
+        totalPrice: it.totalPrice || 0
       });
     });
   });
@@ -5269,15 +5281,8 @@ function parseAndFill() {
               p2 = 6;
               log.push('🔁 เลข "' + num + '" รูปแบบ x6 — ถือเป็นซื้อกลับทุกตำแหน่ง (โต๊ด x6) ไม่แปลงเป็น T');
             } else {
-            // x หรือ * หรือ / → ถือว่าเป็น T (ตรง*โต๊ด) เสมอ
+            // x หรือ * หรือ / → ถือว่าเป็น T (ตรง*โต๊ด) เสมอ ไม่ว่าเลขจะซ้ำหรือไม่
             xtMode = 'T';
-            // ตรวจเลขซ้ำ: ถ้ามีตัวซ้ำ → บังคับ X และ p2=3
-            const hasDup = num[0]===num[1] || num[1]===num[2] || num[0]===num[2];
-            if (hasDup) {
-              log.push('⚠️ เลข "' + num + '" มีเลขซ้ำ — บังคับ X และตัวคูณเป็น 3 ให้อัตโนมัติ');
-              xtMode = 'X';
-              p2 = 3;
-            }
           }
           }
           // sep === '' = ราคาเดียว ใช้ T ตามปกติ (ไม่ตรวจเลขซ้ำ เพราะไม่มีราคาโต๊ด)
@@ -5636,7 +5641,7 @@ function openDeductModal(customerName, sourceBillId) {
       listHtml += `<div style="font-size:11px;color:var(--text2);font-weight:700;margin:6px 0 4px;letter-spacing:1px;">📋 ${g.label}</div>`;
       g.rows.forEach(function(r) {
         const it = r.item;
-        const totalPrice = it.priceMain + (it.priceTod || 0);
+        const totalPrice = it.totalPrice || (it.priceMain + (it.priceTod || 0));
         listHtml += `<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--dark3);border-radius:6px;cursor:pointer;">
           <input type="checkbox" value="${r.i}" style="width:16px;height:16px;accent-color:var(--gold);" onchange="onDeductItemChange()">
           <span style="font-family:monospace;font-size:16px;font-weight:700;">${it.num}</span>
@@ -5736,7 +5741,7 @@ function applyDeductAndSave() {
     const deductByBill = {};
     selectedItems3.forEach(function(it) {
       if (!deductByBill[it.billId]) deductByBill[it.billId] = 0;
-      deductByBill[it.billId] += (it.priceMain || 0) + (it.priceTod || 0);
+      deductByBill[it.billId] += it.totalPrice || ((it.priceMain || 0) + (it.priceTod || 0));
     });
 
     // สำหรับบิลที่ถูก: หักเฉพาะส่วนที่มีชุดเลขถูกเลือก
