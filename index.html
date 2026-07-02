@@ -2716,9 +2716,13 @@ function renderSummary() {
       });
       // เติมจาก _prizeBillResults เฉพาะบิลที่ Sheet ยังไม่มีข้อมูล (เหตุผลเดียวกับจุดข้างบน —
       // ไม่ให้ localStorage ของเครื่องนี้ทับค่าล่าสุดจาก Sheet ที่อาจถูกอัปเดตจากเครื่องอื่น)
+      // จุดที่แก้ (2/7/69 รอบ 6): เดิมใช้ pr.betTotal ตรงๆ ซึ่งเป็นยอดรวมข้ามบิลทั้งกลุ่ม
+      // (เงื่อนไขที่ 3) ทำให้ตอนรวม "ยอดหักบิลถูกลูกค้า" ทับซ้อนกับยอดของบิลไม่ถูกที่ถูกหักในกลุ่ม
+      // เดียวกัน (บันทึกแยกอีกแถวหนึ่ง) ให้ใช้ pr._ownBetTotal (ยอดเฉพาะบิลนี้เอง) แทนถ้ามี
       (window._prizeBillResults || []).forEach(function(pr) {
         if (savedIdsF.has(pr.billId) && !pm[pr.billId]) {
-          pm[pr.billId] = { netTransfer: pr.netTransfer, winTotal: pr.winTotal || 0, betTotal: pr.betTotal || 0 };
+          const ownBet = (pr._ownBetTotal !== undefined && pr._ownBetTotal !== null) ? pr._ownBetTotal : (pr.betTotal || 0);
+          pm[pr.billId] = { netTransfer: pr.netTransfer, winTotal: pr.winTotal || 0, betTotal: ownBet };
         }
       });
       // ยอดหักบิลถูกลูกค้า
@@ -5863,6 +5867,7 @@ function applyDeductAndSave() {
           netTransfer: -remainingAfter, // ติดลบ = ยอดคงเหลือที่ลูกค้ายังต้องชำระของบิลนี้
           adjustedBetTotal: remainingAfter,
           transferAmt: 0,
+          _billDeductForUI: deducted,   // ยอดเฉพาะบิลนี้เอง (เท่ากับ betTotal อยู่แล้วสำหรับบิลไม่ถูก)
           _isNonWinBill: true // ไม่ใช่บิลถูกรางวัล — ไม่เอาไปรวมใน "รวมยอดแทง" ของหน้าถูกรางวัล
         });
       }
@@ -5940,6 +5945,13 @@ function applyDeductAndSave() {
         existing.netTransfer = bd.netTransfer;
         existing.transferAmt = bd.transferAmt;
         existing.betTotal = bd.betTotal;
+        // จุดที่แก้ (2/7/69 รอบ 6): existing.betTotal ด้านบนคือยอดรวมข้ามบิล (ใช้แสดงผลหน้า
+        // ถูกรางวัลเท่านั้น) — เก็บยอด "เฉพาะบิลนี้เอง" แยกไว้อีกฟิลด์ (_ownBetTotal) สำหรับใช้คำนวณ
+        // "ยอดหักบิลถูกลูกค้า" ในหน้าสรุป (ก่อน reload) กันไม่ให้นับยอดที่หักไปแล้วซ้ำกับบิลไม่ถูก
+        // ที่ถูกหักในกลุ่มเดียวกัน (ดูจุดแก้ที่ pm[pr.billId] ด้านล่างในฟังก์ชัน renderSummary)
+        existing._ownBetTotal = (bd._billDeductForUI !== undefined && bd._billDeductForUI !== null)
+          ? bd._billDeductForUI
+          : bd.betTotal;
         // winTotal คงเดิม (ยอดถูกจริง) — ไม่เปลี่ยน
       }
     });
@@ -5988,11 +6000,15 @@ function applyDeductAndSave() {
     // อัปเดต data ในปุ่มบันทึกผลรางวัล ให้ใช้ betTotal ใหม่
     const saveBtn = billEl.querySelector('[id^="savebtn_"]');
     if (saveBtn) {
+      // จุดที่แก้ (2/7/69 รอบ 6): ปุ่มบันทึกทีละบิลนี้ก็ต้องส่ง betTotal เป็นยอดเฉพาะบิลนี้เอง
+      // (ไม่ใช่ยอดรวมข้ามบิล) เหมือนกับ saveNext() ด้านล่าง ไม่งั้นกดบันทึกทีละบิลแล้วจะเจอ
+      // ปัญหายอดหักซ้ำซ้อนแบบเดียวกัน
+      const ownBet = (bd._billDeductForUI !== undefined && bd._billDeductForUI !== null) ? bd._billDeductForUI : bd.betTotal;
       const updatedData = {
         billId: bd.billId,
         customerName: bd.customerName,
         period: bd.period,
-        betTotal: bd.betTotal,
+        betTotal: ownBet,
         winTotal: bd.winTotal,
         netTransfer: bd.netTransfer
       };
@@ -6036,13 +6052,26 @@ function applyDeductAndSave() {
       return;
     }
     const bd = savePromises[i];
+    // จุดที่แก้ (2/7/69 รอบ 6): บิลถูกรางวัลในเงื่อนไขที่ 3 เดิมส่ง betTotal = billShareDeduct
+    // (ยอดหักรวมข้ามบิลทั้งกลุ่ม เช่น 310+120=430) ไปบันทึกลงคอลัมน์ "ยอดแทงถูกหัก" ในชีตตรงๆ
+    // ซึ่งใช้ถูกแล้วสำหรับหน้าแสดงผล/สูตรคำนวณ netTransfer แต่พอเอาไปรวมกับ "ยอดหักบิลถูกลูกค้า"
+    // (ผลรวม betTotal ทุกบิลของลูกค้า) มันจะทับซ้อนกับยอด 310 ที่บิลไม่ถูก (บิลอื่นที่ถูกติ๊กเลือก
+    // ไว้ด้วย) บันทึกแยกไว้อีกแถวหนึ่งอยู่แล้ว (จากรอบ 5) รวมกันเลยกลายเป็น 430+310=740 ทั้งที่ยอด
+    // ที่หักจริงทั้งกลุ่มคือ 430 เท่านั้น
+    // แก้โดยบันทึก "betTotal" ลงชีต (คอลัมน์ที่ 10) ด้วยยอดเฉพาะของบิลนี้เองเท่านั้น
+    // (bd._billDeductForUI = ยอดจากรายการที่ถูกติ๊กซึ่งอยู่ในบิลนี้ใบเดียว เช่น 120) แทนที่จะใช้
+    // bd.betTotal (ยอดรวมข้ามบิลทั้งกลุ่ม) ตรงๆ — ส่วนยอดที่ใช้แสดงผลบนหน้าถูกรางวัล/สูตรคำนวณ
+    // ยังคงใช้ bd.betTotal (billShareDeduct) เหมือนเดิม ไม่กระทบ — เปลี่ยนแค่ค่าที่ "บันทึกลง Sheet"
+    const sheetBetTotal = (bd._billDeductForUI !== undefined && bd._billDeductForUI !== null)
+      ? bd._billDeductForUI
+      : bd.betTotal;
     // ส่งข้อมูลที่จำเป็นเท่านั้น (ตัด _billDeductForUI ออก)
     const saveData = {
       billId: bd.billId,
       customerName: bd.customerName,
       period: bd.period,
       winTotal: bd.winTotal,
-      betTotal: bd.betTotal,
+      betTotal: sheetBetTotal,
       netTransfer: bd.netTransfer,
       adjustedBetTotal: bd.adjustedBetTotal,
       transferAmt: bd.transferAmt
