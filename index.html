@@ -2536,11 +2536,14 @@ function renderSummary() {
           prizeMap[b.billId].winTotal = (b.winTotal !== null && b.winTotal !== undefined) ? b.winTotal : (b.netTransfer || 0) + (b.total || 0);
         }
       });
-      // 2) override ด้วย _prizeBillResults ถ้ามี — เฉพาะบิลที่กดบันทึกแล้วเท่านั้น
-      // บิลที่ตรวจพบว่าถูกแต่ยังไม่กดบันทึกจะไม่นำมาคำนวณในหน้าสรุป
+      // 2) เติมจาก _prizeBillResults เฉพาะบิลที่ Sheet ยังไม่มีข้อมูล (ยังไม่เคย sync ขึ้นไปเลย)
+      // เดิมโค้ดนี้ "ทับ" ค่าจาก Sheet เสมอไม่ว่า Sheet จะมีข้อมูลใหม่กว่าหรือไม่ ทำให้เครื่องที่ไม่ได้กด
+      // บันทึกล่าสุด (เช่น เปิดค้างไว้ หรือเพิ่งเข้ามาดูจากเครื่องอื่น) เห็นค่าเก่าจาก localStorage ของตัวเอง
+      // ทั้งที่ Sheet มีค่าล่าสุดที่ถูกต้องอยู่แล้ว ตอนนี้ให้ Sheet ชนะเสมอ — local cache ใช้เสริมเฉพาะ
+      // กรณีเพิ่งตรวจ/บันทึกในเครื่องนี้แต่ยังไม่ได้กด reload หน้าเพื่อดึงจาก Sheet ใหม่เท่านั้น
       const savedIds = window._savedBillIds || new Set();
       (window._prizeBillResults || []).forEach(function(pr) {
-        if (savedIds.has(pr.billId)) prizeMap[pr.billId] = pr;
+        if (savedIds.has(pr.billId) && !prizeMap[pr.billId]) prizeMap[pr.billId] = pr;
       });
 
       // คำนวณยอดค้างชำระรวมลูกค้า
@@ -2705,8 +2708,10 @@ function renderSummary() {
           pm[b.billId] = { netTransfer: b.netTransfer, winTotal: b.winTotal || 0, betTotal: betTot };
         }
       });
+      // เติมจาก _prizeBillResults เฉพาะบิลที่ Sheet ยังไม่มีข้อมูล (เหตุผลเดียวกับจุดข้างบน —
+      // ไม่ให้ localStorage ของเครื่องนี้ทับค่าล่าสุดจาก Sheet ที่อาจถูกอัปเดตจากเครื่องอื่น)
       (window._prizeBillResults || []).forEach(function(pr) {
-        if (savedIdsF.has(pr.billId)) {
+        if (savedIdsF.has(pr.billId) && !pm[pr.billId]) {
           pm[pr.billId] = { netTransfer: pr.netTransfer, winTotal: pr.winTotal || 0, betTotal: pr.betTotal || 0 };
         }
       });
@@ -3519,7 +3524,7 @@ function getNotifyAmountForCustomer(name) {
     }
   });
   const _sids = window._savedBillIds || new Set();
-  (window._prizeBillResults || []).forEach(function(pr) { if (_sids.has(pr.billId)) prizeMap[pr.billId] = pr; });
+  (window._prizeBillResults || []).forEach(function(pr) { if (_sids.has(pr.billId) && !prizeMap[pr.billId]) prizeMap[pr.billId] = pr; });
 
   let hasPrize = false;
   let netPayable = 0;
@@ -3845,9 +3850,9 @@ function exportCustomerExcel() {
         }
       });
     });
-    // แล้วเติม/override ด้วย _prizeBillResults ถ้ามี — เฉพาะบิลที่กดบันทึกแล้วในเครื่องนี้ (เผื่อตรวจหน้า 4 แต่ยังไม่ reload)
+    // แล้วเติม/override ด้วย _prizeBillResults เฉพาะบิลที่ Sheet ยังไม่มีข้อมูล (เผื่อตรวจหน้า 4 แต่ยังไม่ reload)
     const _sids = window._savedBillIds || new Set();
-    (window._prizeBillResults || []).forEach(function(pr) { if (_sids.has(pr.billId)) prizeMap[pr.billId] = pr; });
+    (window._prizeBillResults || []).forEach(function(pr) { if (_sids.has(pr.billId) && !prizeMap[pr.billId]) prizeMap[pr.billId] = pr; });
     const hasPrizeData = Object.keys(prizeMap).length > 0;
 
     // รวบรวมชื่อเจ้าที่ส่งทั้งหมด (dynamic columns)
@@ -4389,9 +4394,9 @@ async function exportCustomerImages() {
       }
     });
   });
-  // แล้วเติม/override ด้วย _prizeBillResults ถ้ามี — เฉพาะบิลที่กดบันทึกแล้วในเครื่องนี้ (เผื่อตรวจหน้า 4 แต่ยังไม่ reload)
+  // แล้วเติม/override ด้วย _prizeBillResults เฉพาะบิลที่ Sheet ยังไม่มีข้อมูล (เผื่อตรวจหน้า 4 แต่ยังไม่ reload)
   const _sids = window._savedBillIds || new Set();
-  (window._prizeBillResults || []).forEach(function(pr) { if (_sids.has(pr.billId)) prizeMap[pr.billId] = pr; });
+  (window._prizeBillResults || []).forEach(function(pr) { if (_sids.has(pr.billId) && !prizeMap[pr.billId]) prizeMap[pr.billId] = pr; });
 
   // หา period จาก filter bar หรือจากข้อมูลบิล
   let period = '';
