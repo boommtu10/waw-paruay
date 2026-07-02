@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2619,7 +2618,7 @@ function renderSummary() {
         return `
           <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--dark3);">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-weight:700;color:var(--text1);">บิลที่ ${bi+1} <span style="color:var(--text2);font-size:11px;font-weight:400;">${dateShort}</span></span>
+              <span style="font-weight:700;color:var(--text1);">บิลที่ ${bi+1} <span style="color:var(--text2);font-size:10px;font-weight:400;">#${(b.billId||'').slice(-8)}</span> <span style="color:var(--text2);font-size:11px;font-weight:400;">${dateShort}</span></span>
               <div style="display:flex;align-items:center;gap:8px;">
                 <div style="text-align:right;">
                   ${billHeaderLbl ? `<div style="font-size:10px;color:var(--text2);">${billHeaderLbl}</div>` : ''}
@@ -3364,7 +3363,7 @@ function renderPrizeResult(bills, cfg) {
       const TYPE_LABEL_MAP2 = { '3top':'3ตัวบน','3tod':'3ตัวโต๊ด','2top':'2ตัวบน','2bot':'2ตัวล่าง','4tod':'4ตัวโต๊ด','5tod':'5ตัวโต๊ด','runtop':'วิ่งบน','runbot':'วิ่งล่าง' };
       allBillsItemsForDeduct[cust].push({
         billId: b.billId,
-        billLabel: 'บิล ' + b.billId.slice(-4),
+        billLabel: 'บิล ' + b.billId.slice(-8),
         num: it.number,
         type: it.type,
         typeLabel: TYPE_LABEL_MAP2[it.type] || it.type,
