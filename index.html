@@ -2696,7 +2696,14 @@ function renderSummary() {
       const pm = {};
       cBills.forEach(function(b) {
         if (b.netTransfer !== null && b.netTransfer !== undefined) {
-          pm[b.billId] = { netTransfer: b.netTransfer, winTotal: b.winTotal || 0, betTotal: b.betTotal || b.total || 0 };
+          // จุดที่แก้ (2/7/69 รอบ 3): เดิมใช้ b.betTotal ซึ่งฝั่ง Code.gs (savePrizeResult)
+          // ไม่เคยเขียนค่านี้ลงชีตเลย (เขียนแค่ winTotal, netTransfer, transferAmt, adjustedBetTotal)
+          // ทำให้ b.betTotal เป็น undefined เสมอเมื่อโหลดข้อมูลจาก backend ใหม่ แล้ว fallback ไปใช้
+          // b.total (ยอดแทงเต็มบิล ก่อนหักตามเงื่อนไข) แทน ทำให้ยอดรวมไม่ตรงกับที่หน้าถูกรางวัลโชว์
+          // สูตรที่ถูกต้อง: ยอดที่ถูกหักจริง = winTotal - netTransfer เสมอ ไม่ว่าจะเป็นเงื่อนไข 1, 2 หรือ 3
+          // (มาจาก identity เดียวกับตอนคำนวณตอนบันทึก: netTransfer = winTotal - betTotal ที่หัก)
+          const derivedBetTotal = (b.winTotal || 0) - b.netTransfer;
+          pm[b.billId] = { netTransfer: b.netTransfer, winTotal: b.winTotal || 0, betTotal: derivedBetTotal };
         }
       });
       (window._prizeBillResults || []).forEach(function(pr) {
