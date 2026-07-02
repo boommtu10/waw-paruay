@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2696,14 +2695,14 @@ function renderSummary() {
       const pm = {};
       cBills.forEach(function(b) {
         if (b.netTransfer !== null && b.netTransfer !== undefined) {
-          // จุดที่แก้ (2/7/69 รอบ 3): เดิมใช้ b.betTotal ซึ่งฝั่ง Code.gs (savePrizeResult)
-          // ไม่เคยเขียนค่านี้ลงชีตเลย (เขียนแค่ winTotal, netTransfer, transferAmt, adjustedBetTotal)
-          // ทำให้ b.betTotal เป็น undefined เสมอเมื่อโหลดข้อมูลจาก backend ใหม่ แล้ว fallback ไปใช้
-          // b.total (ยอดแทงเต็มบิล ก่อนหักตามเงื่อนไข) แทน ทำให้ยอดรวมไม่ตรงกับที่หน้าถูกรางวัลโชว์
-          // สูตรที่ถูกต้อง: ยอดที่ถูกหักจริง = winTotal - netTransfer เสมอ ไม่ว่าจะเป็นเงื่อนไข 1, 2 หรือ 3
-          // (มาจาก identity เดียวกับตอนคำนวณตอนบันทึก: netTransfer = winTotal - betTotal ที่หัก)
-          const derivedBetTotal = (b.winTotal || 0) - b.netTransfer;
-          pm[b.billId] = { netTransfer: b.netTransfer, winTotal: b.winTotal || 0, betTotal: derivedBetTotal };
+          // จุดที่แก้ (2/7/69 รอบ 4): ตอนนี้ Code.gs (savePrizeResult) เขียนค่า betTotal ลงชีตจริงแล้ว
+          // (คอลัมน์ที่ 10 "ยอดแทงถูกหัก") ดังนั้นใช้ b.betTotal จาก server ได้เลย
+          // ถ้าเป็นบิลเก่าก่อนแก้ที่ยังไม่มีค่านี้ (b.betTotal เป็น null/undefined) ให้คำนวณกลับ
+          // จาก winTotal - netTransfer แทน (สูตรเดียวกัน เป็น fallback กันข้อมูลเก่าพัง)
+          const betTot = (b.betTotal !== null && b.betTotal !== undefined)
+            ? b.betTotal
+            : (b.winTotal || 0) - b.netTransfer;
+          pm[b.billId] = { netTransfer: b.netTransfer, winTotal: b.winTotal || 0, betTotal: betTot };
         }
       });
       (window._prizeBillResults || []).forEach(function(pr) {
@@ -5890,9 +5889,15 @@ function applyDeductAndSave() {
       if (bd._isNonWinBill) return; // ข้ามบิลที่ไม่ถูก
       var existing = window._prizeBillResults.find(function(r) { return r.billId === bd.billId; });
       if (existing) {
-        // อัปเดต netTransfer และ transferAmt ใหม่ตามเงื่อนไขที่เลือก
+        // อัปเดต netTransfer, transferAmt และ betTotal ใหม่ตามเงื่อนไขที่เลือก
+        // จุดที่แก้ (2/7/69 รอบ 4): เดิมลืมอัปเดต existing.betTotal ตรงนี้ ทำให้ betTotal
+        // ในหน่วยความจำ (window._prizeBillResults) ยังเป็นค่าเก่าก่อนหักตามเงื่อนไขที่ 3
+        // แม้ netTransfer จะถูกอัปเดตแล้วก็ตาม พอไปรวมยอด "ยอดหักบิลถูกลูกค้า" ในหน้าสรุป
+        // (ใช้ pr.betTotal ตรงๆ ถ้ายังไม่ได้กด "บันทึกผลรางวัล" ซ้ำ/ยัง reload หน้าไม่ครบ)
+        // เลขที่โชว์เลยไม่ตรงกับที่หน้าถูกรางวัลคำนวณจริง
         existing.netTransfer = bd.netTransfer;
         existing.transferAmt = bd.transferAmt;
+        existing.betTotal = bd.betTotal;
         // winTotal คงเดิม (ยอดถูกจริง) — ไม่เปลี่ยน
       }
     });
@@ -6423,7 +6428,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxbG6UOUzgyR_ab-pJ4D8HCb375cAavGZGicLk3i9RvKslkH7q3j3dTap2sm9hoo-tv/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwweXO54X8UzxDguW0WfQJ3BuPvozw6YFuRv-VyCf7uFt5F5c59E-xkncBGPjWacEhv/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
