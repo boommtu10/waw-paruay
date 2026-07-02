@@ -5784,18 +5784,25 @@ function applyDeductAndSave() {
       const billNet = bill.winTotal - billShareDeduct;
       const adjustedBetTotal = billNet >= 0 ? 0 : Math.abs(billNet);
       const transferAmt = billNet > 0 ? billNet : 0;
+      // จุดที่แก้เพิ่ม (2/7/69 รอบ 2): เดิม betTotal ที่ใช้โชว์บนการ์ด ("รวมยอดแทง (บิลนี้)")
+      // และใช้ในสูตร "คำนวณ: X - Y = Z" ยังคงเป็น billDeduct (ยอดเฉพาะในบิลนี้ใบเดียว เช่น 1,600)
+      // ทำให้เลขที่โชว์กับ netTransfer ที่คำนวณจริง (4,640) ไม่สอดคล้องกัน — สูตรบวกลบผิดให้เห็นชัด
+      // (7,000 - 1,600 ไม่เท่ากับ 4,640) ต้องเปลี่ยนมาใช้ billShareDeduct ซึ่งเป็นยอดหักจริงที่ถูกใช้
+      // ลบออกจาก winTotal ของบิลนี้ (รวมยอดจากทุกบิล/ทุกเจ้าที่ติ๊กเลือกไว้ ไม่ใช่แค่ในบิลเดียว)
+      const isCrossBillDeduct = billShareDeduct !== billDeduct;
       savePromises.push({
         billId: bill.billId,
         customerName: bill.customerName,
         period: bill.period,
         winTotal: bill.winTotal,
         grandTotal: bill.grandTotal || bill.betTotal || 0,
-        betTotal: billDeduct,
+        betTotal: billShareDeduct,
         netTransfer: billNet,
         adjustedBetTotal,
         transferAmt,
         _billDeductForUI: billDeduct,
-        _billNetForUI: billNet
+        _billNetForUI: billNet,
+        _betLabel: isCrossBillDeduct ? 'ยอดหักตามที่เลือก (รวมข้ามบิล)' : undefined
       });
     });
 
@@ -5892,6 +5899,10 @@ function applyDeductAndSave() {
     // row แรก = รวมยอดแทง → ใช้ betTotal (ตามเงื่อนไขที่เลือก) ไม่ใช่ grandTotal
     if (summaryRows[0]) {
       summaryRows[0].querySelector('span:last-child').textContent = (bd.betTotal || 0).toLocaleString('th-TH') + ' ฿';
+      // ถ้ายอดหักเป็นการรวมข้ามบิล (เงื่อนไขที่ 3 เลือกหลายบิล) เปลี่ยนป้ายชื่อให้ลูกค้าไม่เข้าใจผิด
+      // ว่าเป็นยอดแทงของบิลนี้ใบเดียว — ถ้าไม่ใช่กรณีข้ามบิล คงข้อความเดิมไว้ตามปกติ
+      const labelEl = summaryRows[0].querySelector('span:first-child');
+      if (labelEl) labelEl.textContent = bd._betLabel || 'รวมยอดแทง (บิลนี้)';
     }
     // อัปเดต net row
     const netEl = billEl.querySelector('.prize-bill-net');
