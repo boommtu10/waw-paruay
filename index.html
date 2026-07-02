@@ -1148,8 +1148,8 @@
     <div class="card-title">ข้อมูลลูกค้า</div>
     <div class="form-grid">
       <div class="form-group">
-        <label>ชื่อลูกค้า *</label>
-        <input type="text" id="c_name" placeholder="เช่น นาย A">
+        <label>งวดวันที่ *</label>
+        <input type="date" id="c_period" onchange="refreshAgentDropdowns()">
       </div>
       <div class="form-group">
         <label>เลือกเจ้าที่ส่ง (หลัก) *</label>
@@ -1158,8 +1158,9 @@
         </select>
       </div>
       <div class="form-group">
-        <label>งวดวันที่ *</label>
-        <input type="date" id="c_period" onchange="refreshAgentDropdowns()">
+        <label>ชื่อลูกค้า *</label>
+        <input type="text" id="c_name" list="dl_customer_names" placeholder="เช่น นาย A" autocomplete="off">
+        <datalist id="dl_customer_names"></datalist>
       </div>
     </div>
   </div>
@@ -1471,9 +1472,36 @@ function showPage(id) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
-  if (id === 'p2') refreshAgentDropdowns();
+  if (id === 'p2') { refreshAgentDropdowns(); loadCustomerNameList(); }
   if (id === 'p3') { /* nothing auto */ }
   if (id === 'p4') { /* nothing auto — user fills prize numbers manually */ }
+}
+
+// ==================== รายชื่อลูกค้า (autocomplete ช่อง "ชื่อลูกค้า" หน้า 2) ====================
+window._customerNameList = window._customerNameList || [];
+
+function renderCustomerNameDatalist() {
+  const dl = document.getElementById('dl_customer_names');
+  if (!dl) return;
+  dl.innerHTML = window._customerNameList.map(function(n) {
+    return '<option value="' + escHtml(n) + '">';
+  }).join('');
+}
+
+// โหลดรายชื่อลูกค้าที่เคยซื้อทั้งหมดจาก Sheet มาใส่ dropdown ช่องชื่อลูกค้า —
+// ยังพิมพ์ชื่อใหม่ที่ไม่มีในลิสต์ได้ตามปกติ (datalist ไม่บังคับเลือกจากลิสต์เท่านั้น)
+function loadCustomerNameList() {
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r && r.success) {
+        window._customerNameList = r.names || [];
+        renderCustomerNameDatalist();
+      }
+    })
+    .withFailureHandler(function(err) {
+      console.error('getCustomerNames error:', err);
+    })
+    .getCustomerNames();
 }
 
 // ==================== TOAST ====================
@@ -2340,6 +2368,12 @@ function submitBill() {
             .incrementAgentBillCounters(shortNamesInBill, bd2.period);
         }
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
+        // เพิ่มชื่อลูกค้าใหม่เข้า dropdown autocomplete ทันที (เผื่อเป็นลูกค้าใหม่ที่ยังไม่เคยอยู่ในลิสต์)
+        if (bd.customerName && window._customerNameList.indexOf(bd.customerName) === -1) {
+          window._customerNameList.push(bd.customerName);
+          window._customerNameList.sort(function(a, b) { return a.localeCompare(b, 'th'); });
+          renderCustomerNameDatalist();
+        }
         // re-sync counter จาก server เพื่อให้ถูกต้องถ้ามีการบันทึกจาก browser อื่น
         google.script.run
           .withSuccessHandler(function(cr) { if (cr && cr.success) window._billCounter = cr.count; })
@@ -6499,7 +6533,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwweXO54X8UzxDguW0WfQJ3BuPvozw6YFuRv-VyCf7uFt5F5c59E-xkncBGPjWacEhv/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFoTLdzgMLcXsWNPcrmHHKAsbLjqeijNFeSfBxKoG70zA9ACR3EQa4cu9Ze27kVJRm/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
