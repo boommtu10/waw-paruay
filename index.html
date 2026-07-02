@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2618,7 +2619,7 @@ function renderSummary() {
         return `
           <div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--dark3);">
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-              <span style="font-weight:700;color:var(--text1);">บิลที่ ${bi+1} <span style="color:var(--text2);font-size:10px;font-weight:400;">#${(b.billId||'').slice(-8)}</span> <span style="color:var(--text2);font-size:11px;font-weight:400;">${dateShort}</span></span>
+              <span style="font-weight:700;color:var(--text1);">บิลที่ ${bi+1} <span style="color:var(--text2);font-size:11px;font-weight:400;">${dateShort}</span></span>
               <div style="display:flex;align-items:center;gap:8px;">
                 <div style="text-align:right;">
                   ${billHeaderLbl ? `<div style="font-size:10px;color:var(--text2);">${billHeaderLbl}</div>` : ''}
@@ -3363,7 +3364,7 @@ function renderPrizeResult(bills, cfg) {
       const TYPE_LABEL_MAP2 = { '3top':'3ตัวบน','3tod':'3ตัวโต๊ด','2top':'2ตัวบน','2bot':'2ตัวล่าง','4tod':'4ตัวโต๊ด','5tod':'5ตัวโต๊ด','runtop':'วิ่งบน','runbot':'วิ่งล่าง' };
       allBillsItemsForDeduct[cust].push({
         billId: b.billId,
-        billLabel: 'บิล ' + b.billId.slice(-8),
+        billLabel: 'บิล ' + b.billId.slice(-4),
         num: it.number,
         type: it.type,
         typeLabel: TYPE_LABEL_MAP2[it.type] || it.type,
@@ -5746,33 +5747,49 @@ function applyDeductAndSave() {
   let savePromises = [];
 
   if (mode === '3') {
-    // === เงื่อนไขที่ 3: คิดเฉพาะชุดที่เลือก แยกตามบิล ===
-    // จัดกลุ่ม selectedItems3 ตาม billId
+    // === เงื่อนไขที่ 3: หักยอดจากยอดถูกรางวัลรวม (totalWin - deductAmt) ===
+    // จุดที่แก้ (2/7/69): เดิมโค้ดเทียบ "ยอดที่เลือกหักในบิลนี้ใบเดียว" กับ "ยอดแทงทั้งบิลใบนี้"
+    // (billDeduct - billGrandTotal) ซึ่งเป็นคนละสูตรกับที่ preview คำนวณไว้ ทำให้ยอดที่บันทึกจริง
+    // ไม่ตรงกับยอดที่ preview แสดง (เคสน้องฝ้าย: ควรได้ 7,000-2,360=4,640 แต่ระบบบันทึกเป็น 0)
+    //
+    // สูตรที่ถูกต้อง: เอา "ยอดถูกรางวัลรวมของบิลที่ถูกทั้งหมด" ลบด้วย "ยอดที่เลือกหักรวม
+    // ทุกบิล/ทุกเจ้าที่ติ๊กไว้" (deductAmt) แล้วกระจายไปยังบิลที่ถูกรางวัลตามสัดส่วนยอดถูก
+    // ของแต่ละบิล — วิธีกระจายแบบเดียวกับเงื่อนไขที่ 1 และ 2 ด้านล่าง
+
+    // จัดกลุ่ม selectedItems3 ตาม billId — ใช้แสดงยอดขีดเส้นแดง/ยอดหักต่อบิลในหน้าถูกรางวัลเท่านั้น
+    // (ไม่ได้ใช้คำนวณ netTransfer อีกต่อไป)
     const deductByBill = {};
     selectedItems3.forEach(function(it) {
       if (!deductByBill[it.billId]) deductByBill[it.billId] = 0;
       deductByBill[it.billId] += it.totalPrice || ((it.priceMain || 0) + (it.priceTod || 0));
     });
 
-    // สำหรับบิลที่ถูก: หักเฉพาะส่วนที่มีชุดเลขถูกเลือก
-    winBills.forEach(function(bill) {
+    const totalWinSum3 = winBills.reduce(function(s, b) { return s + b.winTotal; }, 0);
+    let remaining3 = deductAmt; // deductAmt = ยอดรวมทุกรายการที่ติ๊กเลือกไว้ (มาจาก calcDeductPreview)
+    winBills.forEach(function(bill, idx) {
+      // billDeduct = เฉพาะยอดที่ถูกเลือกซึ่งอยู่ในบิลใบนี้ — ใช้แค่โชว์ผลตัวเลขของบิลนี้เท่านั้น
       const billDeduct = deductByBill[bill.billId] || 0;
-      // grandTotal = ยอดแทงทั้งบิล (ใช้ grandTotal ที่เก็บไว้ หรือ betTotal เป็น fallback)
-      const billGrandTotal = bill.grandTotal || bill.betTotal || 0;
-      // netTransfer (ใช้ในหน้าสรุปลูกค้า) = ยอดแทงชุดที่เลือก - ยอดแทงทั้งบิล
-      // ลบ = ลูกค้ายังค้างชำระ เช่น 300 - 910 = -610
-      // บวก = ยอดถูกชุดที่เลือกเกินยอดที่ซื้อ (หายาก)
-      const billNet = billDeduct - billGrandTotal;
+
+      // กระจายยอดหักรวม (deductAmt) ไปตามสัดส่วนยอดถูกของแต่ละบิลที่ถูกรางวัล
+      // (บิลสุดท้ายรับส่วนที่เหลือ กันปัดเศษแล้วยอดไม่ครบ เหมือนที่เงื่อนไข 1/2 ทำ)
+      let billShareDeduct;
+      if (idx < winBills.length - 1) {
+        billShareDeduct = totalWinSum3 > 0 ? Math.round(deductAmt * bill.winTotal / totalWinSum3) : 0;
+      } else {
+        billShareDeduct = remaining3;
+      }
+      remaining3 -= billShareDeduct;
+
+      // netTransfer = ยอดถูกของบิลนี้ - ส่วนแบ่งยอดหักของบิลนี้ (ตรงกับสูตรที่ preview ใช้)
+      const billNet = bill.winTotal - billShareDeduct;
       const adjustedBetTotal = billNet >= 0 ? 0 : Math.abs(billNet);
-      // transferAmt = ยอดที่ต้องโอนให้ลูกค้าจริงๆ = ยอดถูกทั้งหมด - ยอดแทงชุดที่เลือก
-      // เช่น 2,100 - 300 = 1,800
-      const transferAmt = (bill.winTotal - billDeduct) > 0 ? (bill.winTotal - billDeduct) : 0;
+      const transferAmt = billNet > 0 ? billNet : 0;
       savePromises.push({
         billId: bill.billId,
         customerName: bill.customerName,
         period: bill.period,
         winTotal: bill.winTotal,
-        grandTotal: billGrandTotal,
+        grandTotal: bill.grandTotal || bill.betTotal || 0,
         betTotal: billDeduct,
         netTransfer: billNet,
         adjustedBetTotal,
