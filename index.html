@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -2577,7 +2578,13 @@ function renderSummary() {
         if (pr) {
           const nt = pr.netTransfer;
           billHeaderTotal = nt >= 0 ? 0 : Math.abs(nt);
-          if (nt > 0) billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:var(--green);font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — โอน ${nt.toLocaleString('th-TH')} ฿ | ยอดสุทธิ = 0</div>`;
+          // จุดที่แก้ (2/7/69 รอบ 5): บิลที่ไม่ถูกรางวัลแต่ถูกหักข้ามบิล (เงื่อนไขที่ 3) จะมี pr.winTotal = 0
+          // เดิมข้อความจะโชว์ "🏆 ถูก 0 ฿" ซึ่งทำให้เข้าใจผิดว่าบิลนี้ถูกรางวัลด้วย — ใช้ข้อความอื่นแทน
+          const isCrossDeductOnly = !pr.winTotal;
+          if (isCrossDeductOnly) {
+            if (nt === 0) billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:var(--text2);">🔗 หักข้ามบิลครบแล้ว | ยอดสุทธิ = 0</div>`;
+            else billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:#d6334d;font-weight:700;">🔗 หักข้ามบิลบางส่วน — ค้างชำระ ${Math.abs(nt).toLocaleString('th-TH')} ฿</div>`;
+          } else if (nt > 0) billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:var(--green);font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — โอน ${nt.toLocaleString('th-TH')} ฿ | ยอดสุทธิ = 0</div>`;
           else if (nt === 0) billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:var(--text2);">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — หักลบเสมอกัน | ยอดสุทธิ = 0</div>`;
           else billPrizeHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;font-size:12px;color:#d6334d;font-weight:700;">🏆 ถูก ${pr.winTotal.toLocaleString('th-TH')} ฿ — ค้างชำระ ${Math.abs(nt).toLocaleString('th-TH')} ฿</div>`;
         }
@@ -5820,14 +5827,45 @@ function applyDeductAndSave() {
     // อัปเดต UI บิลที่มีชุดเลขถูกเลือก (ทุกบิล ไม่ใช่แค่บิลที่ถูก)
     // เก็บ adjustment ไว้ใน window._billTotalAdjust เพื่อให้ renderSummary ใช้
     if (!window._billTotalAdjust) window._billTotalAdjust = {};
+    // จุดที่แก้ (2/7/69 รอบ 5): เดิม deductByBill ที่ตกลงบน "บิลอื่นที่ไม่ถูกรางวัล" (ติ๊กเลือกไว้แต่
+    // ไม่ได้อยู่ในกลุ่มบิลที่ถูก) ถูกเก็บไว้แค่ใน window._billTotalAdjust (client memory) เท่านั้น —
+    // ไม่เคยถูกส่งไป savePrizeResult() เพื่อบันทึกลง Sheet เลย ทำให้ reload หน้า/เปิดเครื่องอื่น/sync
+    // แล้ว window._billTotalAdjust รีเซ็ตเป็น {} ยอดคงเหลือของบิลไม่ถูกจึงกระโดดกลับไปเป็นยอดเต็ม
+    // (ตัวอย่าง: 200+600+120+60=980 ทั้งที่ควรเหลือ 600 ตามที่หักไปแล้วจริง)
+    // แก้โดยสร้าง savePromises entry เพิ่มให้บิลไม่ถูกเหล่านี้ด้วย โดยฝาก "ยอดคงเหลือหลังหัก"
+    // ไว้ใน netTransfer แบบติดลบ (netTransfer = -remaining) ตามสูตรเดียวกับที่ใช้แสดง
+    // "ค้างชำระ" ของบิลที่ถูกรางวัล — ทำให้ getAllSummary คืนค่า netTransfer นี้กลับมาเป็น pr
+    // ที่ถูกต้องแม้จะ reload หน้าใหม่ ไม่ต้องพึ่ง window._billTotalAdjust อีกต่อไป
+    const winBillIds3 = new Set(winBills.map(function(b) { return b.billId; }));
     Object.keys(deductByBill).forEach(function(bid) {
       const deducted = deductByBill[bid];
       // เก็บยอดที่หักออกต่อบิล (จะถูกใช้ใน renderSummary เพื่อลดยอด grandTotal)
       window._billTotalAdjust[bid] = (window._billTotalAdjust[bid] || 0) + deducted;
       // อัปเดต _allBillsForDeduct ด้วย
+      let originalRemaining = deducted; // fallback เผื่อหา billInfo ไม่เจอ
+      let billCustName = modal._customerName || '';
       if (window._allBillsForDeduct) {
         const billInfo = window._allBillsForDeduct.find(function(b) { return b.billId === bid; });
-        if (billInfo) billInfo.betTotal = Math.max(0, (billInfo.betTotal || 0) - deducted);
+        if (billInfo) {
+          originalRemaining = billInfo.betTotal || 0; // ยอดคงเหลือก่อนการหักครั้งนี้
+          billCustName = billInfo.customerName || billCustName;
+          billInfo.betTotal = Math.max(0, originalRemaining - deducted);
+        }
+      }
+      // ถ้าบิลนี้ไม่ใช่บิลที่ถูกรางวัล (ถูกติ๊กเลือกไว้เพื่อหักข้ามบิลเท่านั้น) → ต้องบันทึกลง Sheet ด้วย
+      if (!winBillIds3.has(bid)) {
+        const remainingAfter = Math.max(0, originalRemaining - deducted);
+        savePromises.push({
+          billId: bid,
+          customerName: billCustName,
+          period: window._prizePeriodLabel || '',
+          winTotal: 0,
+          betTotal: deducted,           // ยอดแทงที่ถูกหักออกไปจากบิลนี้
+          netTransfer: -remainingAfter, // ติดลบ = ยอดคงเหลือที่ลูกค้ายังต้องชำระของบิลนี้
+          adjustedBetTotal: remainingAfter,
+          transferAmt: 0,
+          _isNonWinBill: true // ไม่ใช่บิลถูกรางวัล — ไม่เอาไปรวมใน "รวมยอดแทง" ของหน้าถูกรางวัล
+        });
       }
     });
 
