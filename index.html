@@ -370,6 +370,7 @@
     transition: border-color 0.2s;
   }
   .lotto-row.banned-alert { border-color: var(--red); background: rgba(255,77,109,0.08); }
+  .lotto-row.banned-half { border-color: var(--gold); background: rgba(230,180,60,0.10); }
   .lotto-row input { min-width: 0; }
   .lotto-row .num-input { width: 90px; font-weight: 700; font-size: 16px; text-align: center; letter-spacing: 2px; }
   .lotto-row .price-input { width: 80px; text-align: right; }
@@ -1968,6 +1969,13 @@ function calcRow(id, type) {
 }
 
 // ==================== BAN CHECK ====================
+// เวลาตัดรอบ "เลขอั้น" — ก่อน 12:00 น. ห้ามส่งเลขอั้น (ต้องเปลี่ยนเจ้า)
+// ตั้งแต่ 12:00 น. เป็นต้นไป อนุญาตให้ส่งเลขอั้นได้ แต่จ่ายครึ่งราคาตอนคิดรางวัล
+const BAN_CUTOFF_HOUR = 12;
+function isAfterBanCutoff() {
+  return new Date().getHours() >= BAN_CUTOFF_HOUR;
+}
+
 function getSelectedAgent() {
   const sel = document.getElementById('c_agent');
   const id = sel.value;
@@ -2004,7 +2012,13 @@ function checkBannedRow(id, type) {
   const row = document.getElementById('row_' + id);
   const warnEl = document.getElementById('warn_' + id);
   const altSel = document.getElementById('altAgent_' + id);
-  if (!row || !num) { row?.classList.remove('banned-alert'); if(warnEl) warnEl.textContent=''; if(altSel) altSel.style.display='none'; return; }
+  if (!row || !num) {
+    row?.classList.remove('banned-alert', 'banned-half');
+    if (row) row.dataset.banHalf = '';
+    if (warnEl) warnEl.textContent = '';
+    if (altSel) altSel.style.display = 'none';
+    return;
+  }
 
   const agentId = row.dataset.altAgent || document.getElementById('c_agent').value;
   const agent = agents.find(a => a.id === agentId);
@@ -2017,11 +2031,24 @@ function checkBannedRow(id, type) {
   }
 
   if (isBanned) {
-    row.classList.add('banned-alert');
-    if (warnEl) warnEl.innerHTML = `<span class="text-red font-bold">🚫 อั้น!</span>`;
-    if (altSel) altSel.style.display = 'inline-block';
+    if (isAfterBanCutoff()) {
+      // หลัง 12:00 น. — อนุญาตให้ส่งเลขอั้นได้ (ไม่ต้องเปลี่ยนเจ้า) แต่จะจ่ายครึ่งราคาตอนคิดรางวัล
+      row.classList.remove('banned-alert');
+      row.classList.add('banned-half');
+      row.dataset.banHalf = 'true';
+      if (warnEl) warnEl.innerHTML = `<span class="text-gold font-bold">🟠 อั้น (หลัง 12:00 น. จ่ายครึ่งราคา)</span>`;
+      if (altSel) altSel.style.display = 'inline-block'; // ยังเลือกเปลี่ยนเจ้าอื่นได้ถ้าต้องการ
+    } else {
+      // ก่อน 12:00 น. — บล็อกเหมือนเดิม ต้องเปลี่ยนเจ้า
+      row.classList.add('banned-alert');
+      row.classList.remove('banned-half');
+      row.dataset.banHalf = '';
+      if (warnEl) warnEl.innerHTML = `<span class="text-red font-bold">🚫 อั้น!</span>`;
+      if (altSel) altSel.style.display = 'inline-block';
+    }
   } else {
-    row.classList.remove('banned-alert');
+    row.classList.remove('banned-alert', 'banned-half');
+    row.dataset.banHalf = '';
     if (warnEl) warnEl.textContent = '';
     if (altSel) altSel.style.display = 'none';
   }
@@ -2039,8 +2066,9 @@ function checkBills(silent) {
   document.getElementById('btnSubmit').disabled = true;
   const resultEl = document.getElementById('checkResult');
   const errors = [];
+  const notices = []; // ข้อความแจ้งเตือนที่ไม่บล็อกการส่ง (เช่น อั้นครึ่งราคาหลัง 12:00 น.)
   const types = ['3top','2top','2bot','4tod','5tod','runtop','runbot'];
-  let allBannedClear = true;
+  const afterCutoff = isAfterBanCutoff();
 
   types.forEach(type => {
     const rows = document.querySelectorAll(`#rows_${type} .lotto-row`);
@@ -2063,8 +2091,13 @@ function checkBills(silent) {
         for (const ban of agent.bannedNumbers || []) {
           const expanded = expandBanned(ban);
           if (expanded.includes(num)) {
-            allBannedClear = false;
-            errors.push(`<span class="text-red">🚫 ${TYPE_LABELS[type]}: "${num}" อั้นที่เจ้า "${agent.name}" — โปรดเปลี่ยนเจ้า</span>`);
+            if (afterCutoff) {
+              // หลัง 12:00 น. — ไม่บล็อก แค่แจ้งเตือนว่าจะจ่ายครึ่งราคา
+              notices.push(`<span class="text-gold">🟠 ${TYPE_LABELS[type]}: "${num}" อั้นที่เจ้า "${agent.name}" — อนุญาตส่งได้ (หลัง 12:00 น. จ่ายครึ่งราคา)</span>`);
+            } else {
+              // ก่อน 12:00 น. — บล็อกเหมือนเดิม
+              errors.push(`<span class="text-red">🚫 ${TYPE_LABELS[type]}: "${num}" อั้นที่เจ้า "${agent.name}" — โปรดเปลี่ยนเจ้า</span>`);
+            }
           }
         }
       }
@@ -2073,11 +2106,17 @@ function checkBills(silent) {
 
   if (!silent) {
     if (errors.length) {
-      resultEl.innerHTML = '<div class="card" style="border-color:var(--red)">' + errors.join('<br>') + '</div>';
+      let msg = '<div class="card" style="border-color:var(--red)">' + errors.join('<br>');
+      if (notices.length) msg += '<br>' + notices.join('<br>');
+      msg += '</div>';
+      resultEl.innerHTML = msg;
     } else {
       checkPassed = true;
       document.getElementById('btnSubmit').disabled = false;
-      resultEl.innerHTML = '<div class="card" style="border-color:var(--green)"><span class="text-green font-bold">✅ ตรวจสอบผ่านทั้งหมด — กดส่งข้อมูลได้เลย</span></div>';
+      let msg = '<div class="card" style="border-color:var(--green)"><span class="text-green font-bold">✅ ตรวจสอบผ่านทั้งหมด — กดส่งข้อมูลได้เลย</span>';
+      if (notices.length) msg += '<br>' + notices.join('<br>');
+      msg += '</div>';
+      resultEl.innerHTML = msg;
     }
   }
   return errors.length === 0;
@@ -2121,6 +2160,12 @@ function collectBillData() {
         if (flipped) item.note = 'กลับ';
       } else {
         item.totalPrice = p1;
+      }
+
+      // เลขอั้นที่อนุญาตส่งได้หลัง 12:00 น. → ติดธง 'อั้น' ไว้ใน note
+      // เพื่อให้หน้าตรวจสอบผู้ถูกรางวัลรู้ว่าเลขนี้ต้องจ่ายครึ่งราคา
+      if (row.dataset.banHalf === 'true') {
+        item.note = item.note ? (item.note + ',อั้น') : 'อั้น';
       }
 
       agentGroups[agentName].push(item);
@@ -3134,6 +3179,11 @@ function renderPrizeResult(bills, cfg) {
       let wonPay = 0;
       let wonAmt = 0;
 
+      // เลขอั้นที่ส่งได้หลัง 12:00 น. → จ่ายครึ่งราคาของอัตราจ่ายเต็มที่ตั้งไว้ในหน้าเจ้าที่ส่ง
+      // มีผลเฉพาะ 3ตัวตรง / 3ตัวโต๊ด / 2ตัวบน / 2ตัวล่าง ตามที่ตกลงกันไว้ (ไม่กระทบวิ่งบน/วิ่งล่าง)
+      const isHalfBan = !!(item.note && String(item.note).indexOf('อั้น') !== -1);
+      const getRate = (rate) => isHalfBan ? (rate / 2) : rate;
+
       if (type === '3top' || type === '3tod') {
         const xOrT = item.xOrT || 'T';
 
@@ -3144,7 +3194,7 @@ function renderPrizeResult(bills, cfg) {
           const allPermsSet = new Set([...(cfg.straight3Set || []), ...(cfg.tod3Set || [])]);
           if (allPermsSet.has(num)) {
             const betAmt = item.priceMain || 0;
-            const payRate = Number(ag.pay3straight) || 0;
+            const payRate = getRate(Number(ag.pay3straight) || 0);
             wonAmt = betAmt * payRate;
             wonLabel = `3ตัวตรง ${betAmt}×${payRate}`;
             won = true;
@@ -3154,7 +3204,7 @@ function renderPrizeResult(bills, cfg) {
           // ตรวจ 3 ตัวตรง (ใช้ priceMain)
           if (cfg.straight3Set && cfg.straight3Set.has(num)) {
             const betAmt = item.priceMain || 0;
-            const payRate = Number(ag.pay3straight) || 0;
+            const payRate = getRate(Number(ag.pay3straight) || 0);
             wonAmt = betAmt * payRate;
             wonLabel = `3ตัวตรง ${betAmt}×${payRate}`;
             won = true;
@@ -3163,7 +3213,7 @@ function renderPrizeResult(bills, cfg) {
             if (type === '3top') {
               const todBetAmt = item.priceTod || 0;
               if (todBetAmt > 0) {
-                const todPayRate = Number(ag.pay3tod) || 0;
+                const todPayRate = getRate(Number(ag.pay3tod) || 0);
                 const todExtra = todBetAmt * todPayRate;
                 wonLabel += ` + 3ตัวโต๊ด ${todBetAmt}×${todPayRate}`;
                 wonAmt += todExtra;
@@ -3176,7 +3226,7 @@ function renderPrizeResult(bills, cfg) {
               // T mode: priceTod คือราคาโต๊ดที่ลูกค้าวางไว้
               const todBetAmt = item.priceTod || 0;
               if (todBetAmt > 0) {
-                const payRate = Number(ag.pay3tod) || 0;
+                const payRate = getRate(Number(ag.pay3tod) || 0);
                 const extra = todBetAmt * payRate;
                 if (won) {
                   wonLabel += ` + 3ตัวโต๊ด ${todBetAmt}×${payRate}`;
@@ -3190,7 +3240,7 @@ function renderPrizeResult(bills, cfg) {
             } else {
               // type === '3tod' standalone
               const betAmt = item.priceMain || 0;
-              const payRate = Number(ag.pay3tod) || 0;
+              const payRate = getRate(Number(ag.pay3tod) || 0);
               wonAmt = betAmt * payRate;
               wonLabel = `3ตัวโต๊ด ${betAmt}×${payRate}`;
               won = true;
@@ -3200,7 +3250,7 @@ function renderPrizeResult(bills, cfg) {
       } else if (type === '2top') {
         if (cfg.top2Set && cfg.top2Set.has(num)) {
           const betAmt = item.priceMain || 0;
-          const payRate = Number(ag.pay2top) || 0;
+          const payRate = getRate(Number(ag.pay2top) || 0);
           wonAmt = betAmt * payRate;
           wonLabel = `2ตัวบน ${betAmt}×${payRate}`;
           won = true;
@@ -3208,7 +3258,7 @@ function renderPrizeResult(bills, cfg) {
       } else if (type === '2bot') {
         if (cfg.bot2Set && cfg.bot2Set.has(num)) {
           const betAmt = item.priceMain || 0;
-          const payRate = Number(ag.pay2bottom) || 0;
+          const payRate = getRate(Number(ag.pay2bottom) || 0);
           wonAmt = betAmt * payRate;
           wonLabel = `2ตัวล่าง ${betAmt}×${payRate}`;
           won = true;
