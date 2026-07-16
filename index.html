@@ -2162,10 +2162,17 @@ function collectBillData() {
         item.totalPrice = p1;
       }
 
-      // เลขอั้นที่อนุญาตส่งได้หลัง 12:00 น. → ติดธง 'อั้น' ไว้ใน note
-      // เพื่อให้หน้าตรวจสอบผู้ถูกรางวัลรู้ว่าเลขนี้ต้องจ่ายครึ่งราคา
-      if (row.dataset.banHalf === 'true') {
-        item.note = item.note ? (item.note + ',อั้น') : 'อั้น';
+      // เช็คเลขอั้นสดใหม่จากเจ้าที่ถูกกำหนดจริงของแถวนี้ (ไม่พึ่ง dataset.banHalf ที่ติดไว้ตอนพิมพ์
+      // เพราะถ้าตอนพิมพ์เลขยังไม่ได้เลือกเจ้า ธงจะไม่ถูกติด ทำให้จ่ายครึ่งราคาหลุดไปได้)
+      // ติดธง 'อั้น' เฉพาะตอนหลัง 12:00 น. เท่านั้น (ก่อน 12:00 น. เลขอั้นถูกบล็อกไปตั้งแต่ขั้นตอนตรวจสอบแล้ว)
+      if (agent && isAfterBanCutoff()) {
+        let isBanHalf = false;
+        for (const ban of agent.bannedNumbers || []) {
+          if (expandBanned(ban).includes(num)) { isBanHalf = true; break; }
+        }
+        if (isBanHalf) {
+          item.note = item.note ? (item.note + ',อั้น') : 'อั้น';
+        }
       }
 
       agentGroups[agentName].push(item);
@@ -5316,6 +5323,12 @@ function parseAndFill() {
     if (/^บน[-\s]*ล่าง$/.test(lower) || /^บ\s*[+&]\s*ล$/.test(lower)) { ctx = '2both'; log.push('📌 context → บน-ล่าง (2ตัวบน+2ตัวล่าง)'); return; }
     // "บน ล่าง" หรือ "บน,ล่าง" = 2 ตัวบน + ล่างพร้อมกัน
     if (/^บน[\s,،]*ล่าง$/.test(lower) || /^ล่าง[\s,،]*บน$/.test(lower)) { ctx = '2both'; log.push('📌 context → บน+ล่าง (2 ตัว)'); return; }
+    // "บ ล" หรือ "บ/ล" หรือ "บ-ล" = ซื้อบน+ล่างพร้อมกัน (แบบย่อตัวเดียว)
+    if (/^บ\s+ล$/.test(lower) || /^บ\s*[\/\-]\s*ล$/.test(lower)) { ctx = '2both'; log.push('📌 context → บ/ล (2ตัวบน+2ตัวล่าง)'); return; }
+    // "บ" ลำพัง (แบบย่อ) = 2 ตัวบน
+    if (/^บ$/.test(lower)) { ctx = '2top'; log.push('📌 context → 2 ตัวบน (บ)'); return; }
+    // "ล" ลำพัง (แบบย่อ) = 2 ตัวล่าง
+    if (/^ล$/.test(lower)) { ctx = '2bot'; log.push('📌 context → 2 ตัวล่าง (ล)'); return; }
     // "บน" ลำพัง (ไม่มี ล่าง ตามมา)
     if (/^บน$/.test(lower)) { ctx = '2top'; log.push('📌 context → 2 ตัวบน'); return; }
     // "ล่าง" ลำพัง
@@ -5406,7 +5419,9 @@ function parseAndFill() {
 
       // 2 ตัวบน
       if (ctx === '2top' || ctx === '2both') {
-        if (nLen === 2) {
+        if (ctx === '2both' && nLen === 3) {
+          // เลข 3 หลักในโหมดบน-ล่าง จัดการแยกด้านล่าง (ลงแค่ 3ตัวบนอย่างเดียว ไม่ตัดลง 2 ตัว)
+        } else if (nLen === 2) {
           const withFlip = (price.sep === 'x');
           fillRow('2top', num, price.p1, '', 0, withFlip);
         } else if (nLen === 1) { fillRow('runtop', num, price.p1, '', 0, false); }
@@ -5414,7 +5429,9 @@ function parseAndFill() {
       }
       // 2 ตัวล่าง
       if (ctx === '2bot' || ctx === '2both') {
-        if (nLen === 2) {
+        if (ctx === '2both' && nLen === 3) {
+          // เลข 3 หลักในโหมดบน-ล่าง จัดการแยกด้านล่าง (ลงแค่ 3ตัวบนอย่างเดียว ไม่ตัดลง 2 ตัว)
+        } else if (nLen === 2) {
           const withFlip2 = (price.sep === 'x');
           fillRow('2bot', num, price.p1, '', 0, withFlip2);
         } else if (nLen === 1) { fillRow('runbot', num, price.p1, '', 0, false); }
@@ -5424,33 +5441,20 @@ function parseAndFill() {
       if (ctx === 'runbot' && nLen === 1) { fillRow('runbot', num, price.p1, '', 0, false); }
       if (ctx === '4tod' && nLen === 4) { fillRow('4tod', num, price.p1, '', 0, false); }
       if (ctx === '5tod' && nLen === 5) { fillRow('5tod', num, price.p1, '', 0, false); }
-      // "บน-ล่าง" / "บ+ล" = 3ตัวบน + 2ตัวบน + 2ตัวล่าง
-      if (ctx === 'both3') {
-        if (nLen === 3) {
-          // 3ตัวบน (T mode — ราคาเดียว ใช้ T)
-          let xtMode3 = 'T', p13 = price.p1, p23 = price.p2;
-          if (price.sep === 'x') {
+      // เลข 3 หลักในโหมด "บน-ล่าง" (2both) → ลงแค่ 3 ตัวบนอย่างเดียว (เหมือนโหมด 3 ตัวบนปกติ)
+      // ไม่ตัด 2 หลักท้ายไปลง 2ตัวบน/2ตัวล่างซ้ำ เพราะลูกค้าส่วนใหญ่พิมพ์เลข 2 ตัวแยกมาเองอยู่แล้ว
+      if (ctx === '2both' && nLen === 3) {
+        let xtMode3 = 'T', p13 = price.p1, p23 = price.p2;
+        if (price.sep === 'x') {
+          if (price.p2 === 6) {
+            xtMode3 = 'X';
+            p23 = 6;
+            log.push('🔁 เลข "' + num + '" รูปแบบ x6 — ถือเป็นซื้อกลับทุกตำแหน่ง (โต๊ด x6) ไม่แปลงเป็น T');
+          } else {
             xtMode3 = 'T';
-            const hasDup3 = num[0]===num[1] || num[1]===num[2] || num[0]===num[2];
-            if (hasDup3) { xtMode3 = 'X'; p23 = 3; }
           }
-          fillRow('3top', num, p13, xtMode3, p23, false);
-          // 2ตัวบน (ใช้ 2 หลักท้าย)
-          const num2 = num.slice(1);
-          fillRow('2top', num2, price.p1, '', 0, false);
-          // 2ตัวล่าง (ใช้ 2 หลักท้าย)
-          fillRow('2bot', num2, price.p1, '', 0, false);
-        } else if (nLen === 2) {
-          // ถ้าส่งแค่เลข 2 หลัก → เพิ่มทั้งบนและล่าง
-          const withFlipB = (price.sep === 'x');
-          fillRow('2top', num, price.p1, '', 0, withFlipB);
-          fillRow('2bot', num, price.p1, '', 0, withFlipB);
-        } else if (nLen === 1) {
-          fillRow('runtop', num, price.p1, '', 0, false);
-          fillRow('runbot', num, price.p1, '', 0, false);
-        } else {
-          log.push('⚠️ context บน-ล่าง แต่เลข ' + nLen + ' หลัก ไม่รองรับ: "' + num + '"');
         }
+        fillRow('3top', num, p13, xtMode3, p23, false);
       }
     });
   });
