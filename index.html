@@ -5529,7 +5529,7 @@ function exportBillImages() {
       byType['2top'].forEach(function(it) {
         lines.push({ text: it.number + ' = ' + it.priceMain + ' บ.', style: 'item' });
         agentTotal += it.priceMain;
-        if (it.note === 'กลับ') {
+        if (it.note && it.note.includes('กลับ')) {
           const rev = it.number.split('').reverse().join('');
           if (rev !== it.number) { lines.push({ text: rev + ' = ' + it.priceMain + ' บ.', style: 'item' }); agentTotal += it.priceMain; }
         }
@@ -5541,7 +5541,7 @@ function exportBillImages() {
       byType['2bot'].forEach(function(it) {
         lines.push({ text: it.number + ' = ' + it.priceMain + ' บ.', style: 'item' });
         agentTotal += it.priceMain;
-        if (it.note === 'กลับ') {
+        if (it.note && it.note.includes('กลับ')) {
           const rev = it.number.split('').reverse().join('');
           if (rev !== it.number) { lines.push({ text: rev + ' = ' + it.priceMain + ' บ.', style: 'item' }); agentTotal += it.priceMain; }
         }
