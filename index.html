@@ -1001,6 +1001,20 @@
     0 8px 30px rgba(217,154,0,.06),
     inset 0 1px 0 rgba(255,255,255,.5);
 }
+
+/* ===== คู่มือรูปแบบข้อความ (parse guide) ===== */
+details > summary::-webkit-details-marker { display:none; }
+details[open] > summary { border-bottom:1px solid var(--border); margin-bottom:6px; }
+.pg-h { font-family:'Kanit',sans-serif; font-weight:700; font-size:13.5px; color:var(--gold);
+        margin:14px 0 4px; }
+.pg-t { width:100%; border-collapse:collapse; margin:6px 0 4px; font-size:12.5px; }
+.pg-t th, .pg-t td { border:1px solid var(--border); padding:5px 8px; text-align:left;
+        vertical-align:top; line-height:1.6; }
+.pg-t th { background:rgba(245,197,24,0.12); font-family:'Kanit',sans-serif; font-weight:700; }
+.pg-t code, .pg-pre { font-family:monospace; }
+.pg-t code { background:rgba(0,0,0,0.05); border-radius:4px; padding:1px 5px; }
+.pg-pre { background:rgba(0,0,0,0.05); border:1px solid var(--border); border-radius:8px;
+        padding:10px 12px; font-size:12.5px; line-height:1.7; overflow-x:auto; margin:6px 0; }
 </style>
 </head>
 <body>
@@ -1057,7 +1071,7 @@
           </div>
           <div class="form-group">
             <label>งวดวันที่ *</label>
-            <input type="date" id="a_period">
+            <input type="date" id="a_period" onchange="window._custPeriodManual=false;syncCustomerPeriod()">
           </div>
           <div class="form-group">
             <label>เปอร์เซ็นต์ที่ได้ (%)</label>
@@ -1149,8 +1163,14 @@
     <div class="card-title">ข้อมูลลูกค้า</div>
     <div class="form-grid">
       <div class="form-group">
-        <label>งวดวันที่ *</label>
-        <input type="date" id="c_period" onchange="refreshAgentDropdowns()">
+        <label>งวดวันที่ * <span style="color:var(--gold);font-size:11px;font-weight:400;">(ล็อคอัตโนมัติจากหน้าเจ้าที่ส่ง)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div id="c_period_display" title="งวดนี้ล็อคตามหน้าเจ้าที่ส่ง"
+               style="flex:1;padding:10px 12px;border:1px solid rgba(245,197,24,0.45);border-radius:10px;background:rgba(245,197,24,0.12);font-family:'Kanit',sans-serif;font-weight:700;font-size:15px;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— ยังไม่มีงวด —</div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="toggleCustomerPeriodEdit()" title="เปลี่ยนงวดเอง (ปกติไม่ต้องกด)">📅</button>
+        </div>
+        <input type="date" id="c_period_picker" style="display:none;margin-top:8px;" onchange="applyCustomerPeriodPicker()">
+        <input type="hidden" id="c_period">
       </div>
       <div class="form-group">
         <label>เลือกเจ้าที่ส่ง (หลัก) *</label>
@@ -1179,6 +1199,85 @@
       <span id="parseStatus" style="font-size:13px;color:var(--text2);"></span>
     </div>
     <div id="parseLog" style="margin-top:8px;font-size:12px;color:var(--text2);line-height:1.8;display:none;"></div>
+
+    <!-- ===== คู่มือ: รูปแบบข้อความที่ระบบแปลงได้ ===== -->
+    <details style="margin-top:14px;border:1px solid var(--border);border-radius:10px;background:rgba(0,0,0,0.02);">
+      <summary style="cursor:pointer;padding:10px 14px;font-family:'Kanit',sans-serif;font-weight:700;font-size:14px;color:var(--blue);list-style:none;">
+        📖 สรุปรูปแบบข้อความที่รองรับ (กดเพื่อดูแบบละเอียด)
+      </summary>
+      <div style="padding:4px 14px 16px;font-size:13px;line-height:1.85;color:var(--text2);">
+
+        <div class="pg-h">1) โครงสร้างข้อความ</div>
+        ข้อความแบ่งเป็น <b>บรรทัดหัวข้อ (ประเภทหวย)</b> และ <b>บรรทัดข้อมูล (เลข = ราคา)</b> —
+        บรรทัดหัวข้อจะกำหนดประเภทให้ทุกบรรทัดที่อยู่<b>ใต้มัน</b> จนกว่าจะเจอหัวข้อใหม่<br>
+        ถ้าบรรทัดแรก ๆ ยังไม่มีหัวข้อ ระบบถือว่าเป็น <b>3 ตัวบน</b> (ค่าเริ่มต้น)
+
+        <div class="pg-h">2) คำที่ใช้เป็นหัวข้อได้ (พิมพ์บรรทัดเดียวโดด ๆ)</div>
+        <table class="pg-t">
+          <tr><th>พิมพ์ว่า</th><th>ระบบเข้าใจเป็น</th></tr>
+          <tr><td><code>บน</code> / <code>บ</code></td><td>2 ตัวบน</td></tr>
+          <tr><td><code>ล่าง</code> / <code>ล</code></td><td>2 ตัวล่าง</td></tr>
+          <tr><td><code>บน-ล่าง</code> / <code>บน ล่าง</code> / <code>ล่าง บน</code> / <code>บ+ล</code> / <code>บ ล</code> / <code>บ/ล</code> / <code>บ-ล</code></td><td>ซื้อทั้ง 2 ตัวบน <b>และ</b> 2 ตัวล่าง พร้อมกัน</td></tr>
+          <tr><td><code>วิ่งบน</code> (มีคำนี้อยู่ในบรรทัด)</td><td>วิ่งบน (เลข 1 หลัก)</td></tr>
+          <tr><td><code>วิ่งล่าง</code></td><td>วิ่งล่าง (เลข 1 หลัก)</td></tr>
+          <tr><td><code>3 ตัว</code> / <code>3ตัว</code></td><td>กลับมาเป็น 3 ตัวบน</td></tr>
+          <tr><td><code>4 ตัว</code> / <code>4ตัว</code></td><td>4 ตัวโต๊ดบน</td></tr>
+          <tr><td><code>5 ตัว</code> / <code>5ตัว</code></td><td>5 ตัวโต๊ดบน</td></tr>
+        </table>
+
+        <div class="pg-h">3) บรรทัดข้อมูล — เขียนได้ 3 แบบ</div>
+        • <code>เลข = ราคา</code> → เช่น <code>123 = 100x100</code><br>
+        • <code>เลข ราคา</code> (เว้นวรรค ไม่ต้องมี =) → เช่น <code>123 100x100</code><br>
+        • <code>เลข เลข เลข ราคา</code> (หลายเลข ราคาเดียวกัน) → เช่น <code>12 34 56 50</code><br>
+        แยกหลายเลขด้วย <b>เว้นวรรค</b> หรือ <b>ลูกน้ำ</b> ก็ได้ เช่น <code>35,12,47 = 10x10</code>
+
+        <div class="pg-h">4) รูปแบบราคา</div>
+        <table class="pg-t">
+          <tr><th>พิมพ์ว่า</th><th>ความหมาย</th></tr>
+          <tr><td><code>100</code></td><td>ราคาเดียว (ใช้กับวิ่ง / 2 ตัว / 4-5 ตัวโต๊ด / 3 ตัวราคาเดียว)</td></tr>
+          <tr><td><code>100x100</code> (หรือ <code>*</code> <code>×</code> <code>/</code> ก็ได้)</td><td>3 ตัว = ตรง 100 + โต๊ด 100 (ระบบใส่โหมด <b>T</b> ให้) / 2 ตัว = ราคา 100 + <b>กลับเลขอัตโนมัติ</b></td></tr>
+          <tr><td><code>100T100</code></td><td>ระบุโหมด T เอง (ตรง 100 / โต๊ด 100) ระบบใช้ตามที่พิมพ์ทันที</td></tr>
+          <tr><td><code>20x6</code> (ตัวหลังเป็น 6 พอดี)</td><td>กรณีพิเศษ 3 ตัว = <b>ซื้อกลับทุกตำแหน่ง 6 ชุด</b> ระบบใส่โหมด <b>X</b> ให้ (ไม่แปลงเป็น T)</td></tr>
+        </table>
+        มีเว้นวรรครอบเครื่องหมายได้ เช่น <code>10 * 10</code> ก็อ่านออก
+
+        <div class="pg-h">5) ระบบตัดสินประเภทจาก "จำนวนหลักของเลข"</div>
+        <table class="pg-t">
+          <tr><th>จำนวนหลัก</th><th>ผลลัพธ์</th></tr>
+          <tr><td>5 หลัก</td><td>ลง <b>5 ตัวโต๊ดบน</b> เสมอ (ไม่สนหัวข้อ)</td></tr>
+          <tr><td>4 หลัก</td><td>ลง <b>4 ตัวโต๊ดบน</b> เสมอ (ไม่สนหัวข้อ)</td></tr>
+          <tr><td>3 หลัก</td><td>ลง <b>3 ตัวบน</b> (ทั้งในหัวข้อ 3 ตัวบน และหัวข้อ บน-ล่าง)</td></tr>
+          <tr><td>2 หลัก</td><td>ตามหัวข้อ: บน→2 ตัวบน, ล่าง→2 ตัวล่าง, บน-ล่าง→<b>ลงทั้งสองช่อง</b></td></tr>
+          <tr><td>1 หลัก</td><td>ตามหัวข้อ: บน/วิ่งบน→วิ่งบน, ล่าง/วิ่งล่าง→วิ่งล่าง, บน-ล่าง→<b>วิ่งทั้งบนและล่าง</b></td></tr>
+        </table>
+
+        <div class="pg-h">6) กฎเพิ่มเติมที่ควรรู้</div>
+        • เลข 2 หลักที่ราคาเขียนแบบ <code>x</code> (เช่น <code>35 = 10x10</code>) ระบบจะ<b>เปิดปุ่มกลับเลขให้อัตโนมัติ</b><br>
+        • ในหัวข้อ <b>บน-ล่าง</b> เลข 3 หลักจะลงแค่ช่อง 3 ตัวบนอย่างเดียว (ไม่ตัด 2 ตัวท้ายไปลงซ้ำ)<br>
+        • เลขที่จำนวนหลักไม่ตรงกับหัวข้อ (เช่น หัวข้อวิ่งบน แต่พิมพ์ 2 หลัก) จะถูก<b>ข้าม</b> และขึ้นคำเตือนสีส้มใน log<br>
+        • บรรทัดที่อ่านไม่ออก (ข้อความทักทาย, ชื่อ, "รวม 500" ฯลฯ) จะถูกข้ามเงียบ ๆ และแสดงใน log ว่า "⏭️ ข้าม"<br>
+        • กด "แปลงข้อความ" ทุกครั้งจะ <b>ล้างรายการเดิมทั้งหมดก่อน</b> แล้วกรอกใหม่<br>
+        • หลังแปลงเสร็จ ระบบเช็คเลขอั้นของเจ้าที่ส่งให้อัตโนมัติ และต้องกด "ตรวจสอบ" ก่อนบันทึกบิลเสมอ
+
+        <div class="pg-h">7) ตัวอย่างข้อความที่แปลงได้ครบ</div>
+        <pre class="pg-pre">บน
+123 = 100x100
+456 100T100
+612 = 20x6
+35,12 = 10x10
+ล่าง
+99 = 50
+บน-ล่าง
+88 = 20
+วิ่งบน
+9 = 1000
+วิ่งล่าง
+3 = 500
+1234 = 50
+12345 = 20</pre>
+        <span style="font-size:12px;">แปลว่า: 3 ตัวบน 123/456/612, 2 ตัวบน 35,12 (กลับ), 2 ตัวล่าง 99, 88 ลงทั้งบนและล่าง, วิ่งบน 9, วิ่งล่าง 3, 4 ตัวโต๊ด 1234, 5 ตัวโต๊ด 12345</span>
+      </div>
+    </details>
   </div>
 
   <!-- 3 ตัวบน -->
@@ -1473,7 +1572,7 @@ function showPage(id) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
-  if (id === 'p2') { refreshAgentDropdowns(); loadCustomerNameList(); }
+  if (id === 'p2') { syncCustomerPeriod(); refreshAgentDropdowns(); loadCustomerNameList(); }
   if (id === 'p3') { /* nothing auto */ }
   if (id === 'p4') { /* nothing auto — user fills prize numbers manually */ }
 }
@@ -1522,6 +1621,7 @@ function loadAgents() {
       if (r && r.success) {
         agents = r.agents || [];
         renderAgentList();
+        syncCustomerPeriod();
         refreshAgentDropdowns();
       } else {
         document.getElementById('agentList').innerHTML = '<div class="text-muted text-sm">⚠️ ไม่พบข้อมูล</div>';
@@ -1813,6 +1913,82 @@ function dateToPeriod(val) {
     return `${d}/${m}/${yy}`;
   }
   return val;
+}
+
+// แปลงกลับ: "16/09/69" (พ.ศ.) → "2026-09-16" (ค.ศ. สำหรับ input[type=date])
+function periodToDate(p) {
+  if (!p) return '';
+  const m = String(p).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return '';
+  const dd = ('0' + m[1]).slice(-2);
+  const mm = ('0' + m[2]).slice(-2);
+  let y = parseInt(m[3], 10);
+  if (y < 100) y += 2500;      // 69 → 2569 (พ.ศ.)
+  if (y > 2400) y -= 543;      // พ.ศ. → ค.ศ.
+  return `${y}-${mm}-${dd}`;
+}
+
+// ==================== LOCK งวดวันที่ หน้าลูกค้า (อิงหน้าเจ้าที่ส่ง) ====================
+window._custPeriodManual = false;   // true = ผู้ใช้กดเปลี่ยนงวดเอง
+
+// งวดที่ "แสดงอยู่" ในหน้าเจ้าที่ส่ง: ใช้ช่องงวดวันที่ของหน้าเจ้าที่ส่งก่อน
+// ถ้ายังว่าง → ใช้งวดล่าสุดจากรายชื่อเจ้าที่ส่งที่โหลดมา
+function getAgentPagePeriodISO() {
+  const aEl = document.getElementById('a_period');
+  const aVal = aEl ? (aEl.value || '').trim() : '';
+  if (aVal) return aVal;
+  let best = '';
+  (agents || []).forEach(function(ag) {
+    const iso = periodToDate(ag.period);
+    if (iso && iso > best) best = iso;
+  });
+  return best;
+}
+
+function setCustomerPeriod(iso) {
+  const hid  = document.getElementById('c_period');
+  const disp = document.getElementById('c_period_display');
+  if (!hid || !disp) return;
+  hid.value = iso || '';
+  const th = dateToPeriod(iso);
+  if (th) {
+    disp.textContent = '📅 ' + th;
+    disp.style.opacity = '1';
+  } else {
+    disp.textContent = '— ยังไม่มีงวด (กรอกงวดที่หน้าเจ้าที่ส่งก่อน) —';
+    disp.style.opacity = '0.65';
+  }
+  const pk = document.getElementById('c_period_picker');
+  if (pk) pk.value = iso || '';
+  refreshAgentDropdowns();
+}
+
+// sync งวดหน้าลูกค้าให้ตรงกับหน้าเจ้าที่ส่ง (ถ้าผู้ใช้ไม่ได้ตั้งเอง)
+function syncCustomerPeriod() {
+  if (window._custPeriodManual) {
+    // ยังคงค่าที่ตั้งเอง แต่รีเฟรช dropdown เจ้าที่ส่งให้ตรงงวด
+    const hid = document.getElementById('c_period');
+    if (hid && hid.value) { setCustomerPeriod(hid.value); return; }
+    window._custPeriodManual = false;
+  }
+  setCustomerPeriod(getAgentPagePeriodISO());
+}
+
+function toggleCustomerPeriodEdit() {
+  const pk = document.getElementById('c_period_picker');
+  if (!pk) return;
+  const show = (pk.style.display === 'none' || !pk.style.display);
+  pk.style.display = show ? 'block' : 'none';
+  if (show) { try { pk.focus(); if (pk.showPicker) pk.showPicker(); } catch(e) {} }
+}
+
+function applyCustomerPeriodPicker() {
+  const pk = document.getElementById('c_period_picker');
+  if (!pk) return;
+  window._custPeriodManual = !!pk.value;
+  setCustomerPeriod(pk.value);
+  pk.style.display = 'none';
+  if (pk.value) toast('ตั้งงวดเอง: ' + dateToPeriod(pk.value), 'info');
 }
 
 function saveAgent() {
@@ -2189,7 +2365,7 @@ function showBillPreview() {
   const cPeriod = document.getElementById('c_period').value.trim();
   if (!cName)   { toast('กรุณากรอกชื่อลูกค้า', 'error');   document.getElementById('c_name').focus();   return; }
   if (!cAgent)  { toast('กรุณาเลือกเจ้าที่ส่ง', 'error');  document.getElementById('c_agent').focus();  return; }
-  if (!cPeriod) { toast('กรุณาเลือกงวดวันที่', 'error');   document.getElementById('c_period').focus(); return; }
+  if (!cPeriod) { toast('ยังไม่มีงวดวันที่ — กรุณากรอกงวดที่หน้าเจ้าที่ส่งก่อน', 'error'); return; }
 
   if (!checkPassed) { checkBills(false); return; }
   // รีเฟรช agents ก่อนเสมอ ป้องกันชื่อย่อ (shortName) ที่แก้ไขล่าสุดไม่อัปเดตใน Export
@@ -2447,8 +2623,10 @@ function submitBill() {
 }
 
 function clearCustomerForm() {
-  ['c_name','c_period'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('c_name').value = '';
   document.getElementById('c_agent').value = '';
+  // งวดวันที่ไม่ล้าง — ล็อคตามหน้าเจ้าที่ส่งเสมอ (กรอกบิลถัดไปต่อได้ทันที)
+  syncCustomerPeriod();
   refreshAgentDropdowns();
   ['3top','2top','2bot','4tod','5tod','runtop','runbot'].forEach(type => {
     document.getElementById('rows_' + type).innerHTML = '';
@@ -4762,7 +4940,7 @@ window.showPage = function(id) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
-  if (id === 'p2') refreshAgentDropdowns();
+  if (id === 'p2') { syncCustomerPeriod(); refreshAgentDropdowns(); loadCustomerNameList && loadCustomerNameList(); }
   if (id === 'p5') autoSetStatPeriod();
   // ===== ทุกครั้งที่เปิดหน้าสรุป ให้ sync สถานะชำระจาก server ใหม่ =====
   if (id === 'p3') syncPaymentStatusThenRender();
