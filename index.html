@@ -1123,7 +1123,7 @@
           </div>
           <div class="form-group">
             <label>งวดวันที่ *</label>
-            <input type="date" id="a_period" onchange="window._custPeriodManual=false;syncCustomerPeriod()">
+            <input type="date" id="a_period" onchange="syncAllLockedPeriods(true)">
           </div>
           <div class="form-group">
             <label>เปอร์เซ็นต์ที่ได้ (%)</label>
@@ -1337,9 +1337,16 @@
   <!-- แถบ filter ด้านบน -->
   <div style="flex-shrink:0;">
     <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px;">
-      <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
-        <label style="font-size:12px;">งวด</label>
-        <input type="date" id="f_period" style="width:100%;padding:7px 10px;font-size:13px;">
+      <div class="form-group" style="flex:1;min-width:150px;margin-bottom:0;">
+        <label style="font-size:12px;">งวด <span class="period-lock-hint">(ล็อคอัตโนมัติ)</span></label>
+        <div class="period-lock-row">
+          <div id="f_period_display" class="period-lock-badge empty" title="งวดนี้ล็อคตามหน้าเจ้าที่ส่ง">
+            <span class="plb-icon">📅</span><span id="f_period_display_text">— ยังไม่มีงวด —</span>
+          </div>
+          <button type="button" class="btn btn-outline period-edit-btn" onclick="periodLockF.toggleEdit()" title="เปลี่ยนงวดเอง">🖊️</button>
+        </div>
+        <input type="date" id="f_period_picker" style="display:none;margin-top:6px;" onchange="periodLockF.applyPicker()">
+        <input type="hidden" id="f_period">
       </div>
       <div class="form-group" style="flex:1;min-width:120px;margin-bottom:0;">
         <label style="font-size:12px;">ค้นหาชื่อ</label>
@@ -1368,9 +1375,16 @@
 <div class="page" id="p4" style="padding-bottom:calc(100px + env(safe-area-inset-bottom));">
   <div class="card">
     <div class="card-title">🎰 กรอกเลขที่ออกรางวัล</div>
-    <div class="form-group" style="max-width:220px;margin-bottom:16px;">
-      <label>งวดวันที่ *</label>
-      <input type="date" id="prize_period">
+    <div class="form-group" style="max-width:260px;margin-bottom:16px;">
+      <label>งวดวันที่ * <span class="period-lock-hint">(ล็อคอัตโนมัติ)</span></label>
+      <div class="period-lock-row">
+        <div id="prize_period_display" class="period-lock-badge empty" title="งวดนี้ล็อคตามหน้าเจ้าที่ส่ง">
+          <span class="plb-icon">📅</span><span id="prize_period_display_text">— ยังไม่มีงวด —</span>
+        </div>
+        <button type="button" class="btn btn-outline period-edit-btn" onclick="periodLockPrize.toggleEdit()" title="เปลี่ยนงวดเอง">🖊️</button>
+      </div>
+      <input type="date" id="prize_period_picker" style="display:none;margin-top:6px;" onchange="periodLockPrize.applyPicker()">
+      <input type="hidden" id="prize_period">
     </div>
     <div class="prize-input-grid">
       <div class="prize-input-group">
@@ -1415,8 +1429,15 @@
     </div>
     <div style="display:flex;gap:8px;align-items:flex-end;">
       <div class="form-group" style="flex:1;">
-        <label>งวดวันที่</label>
-        <input type="date" id="st_period" style="width:100%;">
+        <label>งวดวันที่ <span class="period-lock-hint">(ล็อคอัตโนมัติ)</span></label>
+        <div class="period-lock-row">
+          <div id="st_period_display" class="period-lock-badge empty" title="งวดนี้ล็อคตามหน้าเจ้าที่ส่ง">
+            <span class="plb-icon">📅</span><span id="st_period_display_text">— ยังไม่มีงวด —</span>
+          </div>
+          <button type="button" class="btn btn-outline period-edit-btn" onclick="periodLockSt.toggleEdit()" title="เปลี่ยนงวดเอง">🖊️</button>
+        </div>
+        <input type="date" id="st_period_picker" style="display:none;margin-top:6px;" onchange="periodLockSt.applyPicker()">
+        <input type="hidden" id="st_period">
       </div>
       <button class="btn btn-gold" onclick="saveAndArchive()" style="height:42px;padding:0 20px;white-space:nowrap;flex-shrink:0;">💾 บันทึกข้อมูลงวดนี้</button>
     </div>
@@ -1594,6 +1615,9 @@ function loadAgents() {
         agents = r.agents || [];
         renderAgentList();
         syncCustomerPeriod();
+        periodLockF.sync();
+        periodLockPrize.sync();
+        periodLockSt.sync();
         refreshAgentDropdowns();
       } else {
         document.getElementById('agentList').innerHTML = '<div class="text-muted text-sm">⚠️ ไม่พบข้อมูล</div>';
@@ -1963,6 +1987,79 @@ function applyCustomerPeriodPicker() {
   pk.style.display = 'none';
   if (pk.value) toast('ตั้งงวดเอง: ' + dateToPeriod(pk.value), 'info');
 }
+
+// ==================== LOCK งวดวันที่ — ใช้ซ้ำกับหน้าสรุปยอด / ถูกรางวัล / สถิติ ====================
+// สร้างชุดฟังก์ชันล็อคงวด (แสดงป้าย + ปุ่มแก้ไขเอง) ให้กับ input[type=hidden] ตัวใดก็ได้
+// โดยอิงงวดจากหน้าเจ้าที่ส่งเช่นเดียวกับหน้าลูกค้า (ใช้ getAgentPagePeriodISO() ร่วมกัน)
+function makePeriodLock(fieldId) {
+  const state = { manual: false };
+
+  function setVal(iso) {
+    const hid  = document.getElementById(fieldId);
+    const disp = document.getElementById(fieldId + '_display');
+    const dispText = document.getElementById(fieldId + '_display_text');
+    if (!hid || !disp || !dispText) return;
+    hid.value = iso || '';
+    const th = dateToPeriod(iso);
+    if (th) {
+      dispText.textContent = th;
+      disp.classList.remove('empty');
+    } else {
+      dispText.textContent = 'ยังไม่มีงวด (กรอกงวดที่หน้าเจ้าที่ส่งก่อน)';
+      disp.classList.add('empty');
+    }
+    const pk = document.getElementById(fieldId + '_picker');
+    if (pk) pk.value = iso || '';
+  }
+
+  function sync() {
+    if (state.manual) {
+      const hid = document.getElementById(fieldId);
+      if (hid && hid.value) { setVal(hid.value); return; }
+      state.manual = false;
+    }
+    setVal(getAgentPagePeriodISO());
+  }
+
+  function toggleEdit() {
+    const pk = document.getElementById(fieldId + '_picker');
+    if (!pk) return;
+    const show = (pk.style.display === 'none' || !pk.style.display);
+    pk.style.display = show ? 'block' : 'none';
+    if (show) { try { pk.focus(); if (pk.showPicker) pk.showPicker(); } catch(e) {} }
+  }
+
+  function applyPicker() {
+    const pk = document.getElementById(fieldId + '_picker');
+    if (!pk) return;
+    state.manual = !!pk.value;
+    setVal(pk.value);
+    pk.style.display = 'none';
+    if (pk.value) toast('ตั้งงวดเอง: ' + dateToPeriod(pk.value), 'info');
+  }
+
+  return { setVal, sync, toggleEdit, applyPicker, state };
+}
+
+const periodLockF     = makePeriodLock('f_period');      // หน้า 3 สรุปยอด
+const periodLockPrize = makePeriodLock('prize_period');  // หน้า 4 ถูกรางวัล
+const periodLockSt    = makePeriodLock('st_period');     // หน้า 5 สถิติ (บันทึกผลรางวัลงวดนี้)
+
+// เรียกทุกครั้งที่งวดหน้าเจ้าที่ส่งเปลี่ยน หรือโหลดเจ้าที่ส่งใหม่ — sync ทุกหน้าที่ล็อคงวดพร้อมกัน
+// resetManual = true จะยกเลิกการตั้งงวดเองทุกช่อง แล้วดึงงวดปัจจุบันของหน้าเจ้าที่ส่งกลับมาใหม่
+function syncAllLockedPeriods(resetManual) {
+  if (resetManual) {
+    window._custPeriodManual = false;
+    periodLockF.state.manual = false;
+    periodLockPrize.state.manual = false;
+    periodLockSt.state.manual = false;
+  }
+  syncCustomerPeriod();
+  periodLockF.sync();
+  periodLockPrize.sync();
+  periodLockSt.sync();
+}
+
 
 function saveAgent() {
   const name = document.getElementById('a_name').value.trim();
@@ -3205,9 +3302,12 @@ function clearPrizePage() {
   window._prizeChecked = false;  // reset — อนุญาตลบบิลได้อีกครั้ง
   // ลบค่าที่จำไว้ใน localStorage ด้วย เพราะเริ่มงวดใหม่
   try { localStorage.removeItem('_prizeChecked'); localStorage.removeItem('_savedBillIds'); localStorage.removeItem('_prizeBillResults'); localStorage.removeItem('_custPaymentStatus'); localStorage.removeItem('_custTransferType'); } catch(e) {}
-  ['prize_period','prize_3','prize_2top','prize_2bot'].forEach(id => {
+  ['prize_3','prize_2top','prize_2bot'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  // งวดวันที่ไม่ล้าง — ล็อคตามหน้าเจ้าที่ส่งเสมอ (ยกเลิกงวดที่ตั้งเอง กลับไปใช้งวดปัจจุบัน)
+  periodLockPrize.state.manual = false;
+  periodLockPrize.sync();
   document.getElementById('prizeResult').innerHTML = '';
 }
 
@@ -4914,9 +5014,10 @@ window.showPage = function(id) {
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
   if (id === 'p2') { syncCustomerPeriod(); refreshAgentDropdowns(); loadCustomerNameList && loadCustomerNameList(); }
+  if (id === 'p4') periodLockPrize.sync();
   if (id === 'p5') autoSetStatPeriod();
   // ===== ทุกครั้งที่เปิดหน้าสรุป ให้ sync สถานะชำระจาก server ใหม่ =====
-  if (id === 'p3') syncPaymentStatusThenRender();
+  if (id === 'p3') { periodLockF.sync(); syncPaymentStatusThenRender(); }
 };
 
 // ดึงสถานะชำระล่าสุดจาก server แล้ว re-render เสมอ
@@ -4971,10 +5072,8 @@ function syncAndToast() {
 }
 
 function autoSetStatPeriod() {
-  // ตั้ง default วันของ f_period (หน้า 3) ให้ p5 ด้วย ถ้ายังว่าง
-  const fPeriod = document.getElementById('f_period')?.value || '';
-  const stPeriod = document.getElementById('st_period');
-  if (stPeriod && !stPeriod.value && fPeriod) stPeriod.value = fPeriod;
+  // ล็อคงวดวันที่หน้าสถิติ (p5) ตามหน้าเจ้าที่ส่งเช่นเดียวกับหน้าลูกค้า
+  periodLockSt.sync();
 }
 
 // ==================== SAVE & ARCHIVE ====================
