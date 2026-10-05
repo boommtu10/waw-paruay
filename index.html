@@ -1528,6 +1528,7 @@
   <div class="modal">
     <div class="modal-title">📋 สรุปบิล — ตรวจสอบก่อนบันทึก</div>
     <div class="bill-preview" id="billPreviewContent"></div>
+    <div style="font-size:12px;color:var(--text2);margin:6px 2px 0;">ℹ️ เลขบิลและเลขเจ้า (เช่น K6) ที่เห็นนี้เป็นเลขชั่วคราว — เลขจริงจะออกตอนกดบันทึก (ป้องกันเลขซ้ำเมื่อหลายเครื่องบันทึกพร้อมกัน)</div>
     <div class="bill-modal-actions">
       <button class="btn btn-outline bma-back" onclick="closeBillModal()">← แก้ไข</button>
       <button class="btn btn-outline bma-btn" id="copyBillBtn" onclick="copyBillText()">📋 Copy</button>
@@ -2609,12 +2610,12 @@ function _showCopied(btn) {
 }
 
 // Export + บันทึกพร้อมกันในปุ่มเดียว
+// บันทึกก่อน → server ออกเลขจริง → แล้วค่อย Export รูปด้วยเลขจริง
 function exportAndSubmitBill() {
-  exportBillImages();   // Export ก่อน (ไม่ blocking)
-  submitBill();         // แล้วบันทึก
+  submitBill(true);
 }
 
-function submitBill() {
+function submitBill(exportAfterSave) {
   const bd = window._pendingBillData;
   if (!bd) return;
   // ป้องกันกดซ้ำ
@@ -2641,29 +2642,15 @@ function submitBill() {
       const submitBtn = document.querySelector('#billModal .btn-green');
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '✅ บันทึก'; }
       if (r && r.success) {
-        window._billCounter = (window._billCounter || 0) + 1;
-        // เก็บรายชื่อย่อของเจ้าทั้งหมดในบิลนี้ (ใช้บวกตัวนับ K1/K2/... แบบ atomic ที่ server)
-        const bd2 = window._pendingBillData;
-        const shortNamesInBill = [];
-        if (bd2 && bd2.agentGroups) {
-          Object.keys(bd2.agentGroups).forEach(function(agentName) {
-            const agObj = agents.find(function(a){ return a.id === (bd2.agentIds && bd2.agentIds[agentName]); }) || agents.find(function(a){ return a.name === agentName; });
-            const sn = agObj && agObj.shortName ? agObj.shortName : '';
-            if (sn) shortNamesInBill.push(sn);
-          });
+        // เลขจริงที่ server ออกให้ (อยู่ใน lock จึงไม่ซ้ำข้ามเครื่อง)
+        window._billCounter = (r.billNumber !== undefined) ? r.billNumber : ((window._billCounter || 0) + 1);
+        if (r.counters) {
+          window._agentBillCounters = r.counters;
+          try { localStorage.setItem('_agentBillCounters', JSON.stringify(r.counters)); } catch(e) {}
         }
-        if (shortNamesInBill.length) {
-          // บวกตัวนับที่ server แบบ atomic (มี lock กันชนกันข้ามเครื่อง)
-          // แล้วรับค่าตัวนับ "ทั้งก้อน" ล่าสุดกลับมา sync เก็บไว้ในเครื่องนี้
-          google.script.run
-            .withSuccessHandler(function(cres) {
-              if (cres && cres.success && cres.data) {
-                window._agentBillCounters = cres.data;
-                try { localStorage.setItem('_agentBillCounters', JSON.stringify(cres.data)); } catch(e) {}
-              }
-            })
-            .withFailureHandler(function() { /* เครื่องอื่นจะ sync ให้ตอนเปิด preview ครั้งถัดไป */ })
-            .incrementAgentBillCounters(shortNamesInBill, bd2.period);
+        if (exportAfterSave) {
+          try { exportBillImages({ billNumber: r.billNumber, agentNumbers: r.agentNumbers || {} }, bd); }
+          catch(ex) { console.error('export error:', ex); toast('บันทึกบิลสำเร็จแล้ว แต่ Export รูปไม่สำเร็จ — กรุณาตรวจเลขบิลในรายการบิลแล้ว Export ใหม่', 'error'); }
         }
         toast('บันทึกบิลที่ ' + window._billCounter + ' สำเร็จ ✓', 'success');
         // เพิ่มชื่อลูกค้าใหม่เข้า dropdown autocomplete ทันที (เผื่อเป็นลูกค้าใหม่ที่ยังไม่เคยอยู่ในลิสต์)
@@ -5734,11 +5721,14 @@ function parseAndFill() {
 }
 
 // ==================== EXPORT IMAGE ====================
-function exportBillImages() {
-  const bd = window._pendingBillData;
+// finalNums (ไม่บังคับ): { billNumber, agentNumbers:{K:6} } = เลขจริงที่ server ออกให้ตอนบันทึก
+// ถ้าไม่ส่งมา (ปุ่ม "Export เท่านั้น") จะใช้เลขชั่วคราวจากหน้าตัวอย่าง
+function exportBillImages(finalNums, bdOverride) {
+  const bd = bdOverride || window._pendingBillData;
   if (!bd) { toast('ไม่มีข้อมูลบิล', 'error'); return; }
 
-  const billNum = (window._billCounter || 0) + 1;
+  const isFinal = !!(finalNums && finalNums.billNumber);
+  const billNum = isFinal ? finalNums.billNumber : ((window._billCounter || 0) + 1);
 
   Object.keys(bd.agentGroups).forEach(function(agentName) {
     const items = bd.agentGroups[agentName];
@@ -5746,7 +5736,11 @@ function exportBillImages() {
     // หาชื่อย่อและเลขบิลของเจ้านี้
     const agentObj = agents.find(function(a){ return a.id === (bd.agentIds && bd.agentIds[agentName]); }) || agents.find(function(a){ return a.name === agentName; });
     const sn = agentObj && agentObj.shortName ? agentObj.shortName : '';
-    const agentBillNum = sn ? ((window._agentBillCounters[sn] || 0) + 1) : billNum;
+    const agentBillNum = sn
+      ? ((isFinal && finalNums.agentNumbers && finalNums.agentNumbers[sn] !== undefined)
+          ? finalNums.agentNumbers[sn]
+          : ((window._agentBillCounters[sn] || 0) + 1))
+      : billNum;
     const agentCode = sn ? `${sn}${agentBillNum}` : '';
 
     // รวบรวมบรรทัดข้อความ
@@ -5897,7 +5891,7 @@ function exportBillImages() {
     link.click();
   });
 
-  toast('Export ' + Object.keys(bd.agentGroups).length + ' รูปสำเร็จ', 'success');
+  toast('Export ' + Object.keys(bd.agentGroups).length + ' รูปสำเร็จ' + (isFinal ? '' : ' (เลขชั่วคราว)'), 'success');
 }
 
 // ==================== เงื่อนไขการหักบิลจ่าย ====================
