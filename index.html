@@ -5588,7 +5588,8 @@ function parseAndFill() {
     // PRICE_PAT: อนุญาตช่องว่างรอบ operator (\s* คั่นกลาง)
     const PRICE_PAT = '[\\d]+\\s*[xX\\*×✕✖\\/Tt]\\s*[\\d]+|[\\d]+';
     // ลอง match แบบมี = ก่อน  (แก้: ราคาอาจมี space เช่น "10 * 10")
-    let dataMatch = line.match(new RegExp('^([\\d,،\\s]+?)\\s*=\\s*(' + PRICE_PAT + ')\\s*$'));
+    // รองรับเครื่องหมาย - (และ – —) คั่นระหว่างเลขกับราคา ให้ทำงานเหมือน = เช่น "123-100x100" "35,12 - 10x10"
+    let dataMatch = line.match(new RegExp('^([\\d,،\\s]+?)\\s*[=\\-–—]\\s*(' + PRICE_PAT + ')\\s*$'));
     // ถ้าไม่มี = ลอง match แบบไม่มี = (เลขคั่นด้วย space แล้วราคาอยู่ท้าย)
     if (!dataMatch) {
       dataMatch = line.match(new RegExp('^((?:\\d+[\\s,،]+)+)(' + PRICE_PAT + ')\\s*$'));
