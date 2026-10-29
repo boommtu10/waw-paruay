@@ -4829,6 +4829,31 @@ function confirmClearAllData() {
     .getExistingPeriods();
 }
 
+// popup แจ้งว่าลูกค้าเขียนเลข 2 ตัวกลับไว้เองแล้ว ระบบจึงไม่แปลงกลับซ้ำ
+function showDupReversePopup(pairs) {
+  let modal = document.getElementById('dupReverseModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'dupReverseModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-title">⚠️ ลูกค้าเขียน 2 ตัวกลับอยู่แล้ว</div>
+        <div style="font-size:14px;color:var(--text);margin-bottom:10px;">
+          ลูกค้าเขียนเลขกลับแยกไว้เองแล้ว ระบบ <b>จะไม่แปลงซ้ำ</b> (ใช้ตามที่ลูกค้าเขียนเท่านั้น)
+        </div>
+        <div id="dupReverseList" style="background:var(--dark3);border-radius:8px;padding:10px 14px;font-size:15px;font-weight:700;color:var(--gold);margin-bottom:14px;line-height:1.7;"></div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">
+          กรุณาตรวจดูรายการที่กรอกให้ตรงกับบิลของลูกค้าอีกครั้ง
+        </div>
+        <button class="btn" style="width:100%;" onclick="document.getElementById('dupReverseModal').classList.remove('show')">รับทราบ</button>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  document.getElementById('dupReverseList').innerHTML = pairs.map(function(p){ return 'เลข ' + p; }).join('<br>');
+  modal.classList.add('show');
+}
+
 // แสดง popup ให้เลือกงวดที่ต้องการล้างค่า จากรายการงวดที่มีข้อมูลจริงในระบบ
 function _showClearPeriodPicker(periods) {
   let modal = document.getElementById('clearPeriodModal');
@@ -5552,8 +5577,63 @@ function parseAndFill() {
     filled++;
   }
 
+  // helper: จับบรรทัดข้อมูล "เลข = ราคา" (ใช้ทั้งตอนสแกนล่วงหน้าและตอนแปลงจริง ให้ผลตรงกันเสมอ)
+  // PRICE_PAT: อนุญาตช่องว่างรอบ operator (\s* คั่นกลาง)
+  const PRICE_PAT = '[\\d]+\\s*[xX\\*×✕✖\\/Tt]\\s*[\\d]+|[\\d]+';
+  function matchDataLine(line) {
+    // ลอง match แบบมี = ก่อน  (ราคาอาจมี space เช่น "10 * 10")
+    // รองรับเครื่องหมาย - (และ – —) คั่นระหว่างเลขกับราคา ให้ทำงานเหมือน =
+    let dm = line.match(new RegExp('^([\\d,،\\s]+?)\\s*[=\\-–—]\\s*(' + PRICE_PAT + ')\\s*$'));
+    // ถ้าไม่มี = ลอง match แบบไม่มี = (เลขคั่นด้วย space แล้วราคาอยู่ท้าย)
+    if (!dm) dm = line.match(new RegExp('^((?:\\d+[\\s,،]+)+)(' + PRICE_PAT + ')\\s*$'));
+    // กรณีเลขเดียวตามด้วยราคาโดยไม่มี = หรือ space พิเศษ
+    if (!dm) dm = line.match(new RegExp('^(\\d+)\\s+(' + PRICE_PAT + ')\\s*$'));
+    return dm;
+  }
+
+  // --- ดักเคส "ลูกค้าเขียน 2 ตัวกลับแยกไว้เองแล้ว" ---
+  // เช่น  บ ล / 15 = 50x50 / 51 = 50x50  → ลูกค้าเขียนทั้ง 15 และ 51 เองแล้ว
+  // ถ้าระบบกลับเลขตาม x ให้อีก จะซ้ำ 2 รอบ
+  // สแกนล่วงหน้า: จดไว้ว่าในแต่ละ "ช่วง" (ช่วง = บรรทัดข้อมูลที่อยู่ใต้หัวข้อเดียวกัน)
+  // มีเลข 2 ตัวไหนที่เขียนด้วย x พร้อมราคาเท่าไหร่บ้าง
+  const xPairs = {};
+  (function() {
+    let seg = 0;
+    lines.forEach(function(l) {
+      const dm = matchDataLine(l);
+      if (!dm) { seg++; return; }              // บรรทัดที่ไม่ใช่ข้อมูล (หัวข้อ เช่น บ ล) = เริ่มช่วงใหม่
+      const pr = parsePrice(dm[2].trim());
+      if (!pr || pr.sep !== 'x') return;
+      parseNumbers(dm[1].trim()).forEach(function(n) {
+        if (n.length !== 2 || n[0] === n[1]) return;   // เลขซ้ำ (11, 22) กลับแล้วเหมือนเดิม ไม่ต้องดัก
+        const key = seg + '|' + n;
+        (xPairs[key] = xPairs[key] || []).push(pr.p1);
+      });
+    });
+  })();
+  let segIdx = 0;          // ช่วงปัจจุบันตอนแปลงจริง (นับด้วยกติกาเดียวกับด้านบน)
+  const dupPairs = [];     // คู่เลขที่ถูกดัก ไว้แสดงใน popup
+  // ตัดสินใจว่าเลข 2 ตัวนี้ควร "กลับให้" ไหม
+  function decideFlip(num, price) {
+    if (price.sep !== 'x') return false;
+    if (num.length === 2 && num[0] !== num[1]) {
+      const rev = num[1] + num[0];
+      const arr = xPairs[segIdx + '|' + rev];
+      if (arr && arr.indexOf(price.p1) !== -1) {      // ลูกค้าเขียนเลขกลับ + ราคาเท่ากันไว้เองแล้ว
+        const pair = (num < rev ? num + ' / ' + rev : rev + ' / ' + num);
+        if (dupPairs.indexOf(pair) === -1) {
+          dupPairs.push(pair);
+          log.push('🛡️ เลข ' + pair + ' ลูกค้าเขียนกลับไว้เองแล้ว — ไม่แปลงกลับซ้ำ');
+        }
+        return false;
+      }
+    }
+    return true;
+  }
+
   lines.forEach(function(line) {
     const lower = line.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!matchDataLine(line)) segIdx++;   // นับช่วงให้ตรงกับการสแกนล่วงหน้า
 
     // --- ตรวจ context keyword ---
     // "บน-ล่าง" หรือ "บ+ล" = ซื้อทั้ง 2ตัวบน + 2ตัวล่าง
@@ -5584,20 +5664,9 @@ function parseAndFill() {
     if (/3\s*ตัว/.test(lower)) { ctx = 'top3'; log.push('📌 context → 3 ตัวบน'); return; }
 
     // --- parse บรรทัดข้อมูล ---
-    // รองรับ: "123 = 100x100" | "123 = 100T100" | "100 = 10 * 10" | "100 = 10 *10" | "35,12 = 10x10"
-    // PRICE_PAT: อนุญาตช่องว่างรอบ operator (\s* คั่นกลาง)
-    const PRICE_PAT = '[\\d]+\\s*[xX\\*×✕✖\\/Tt]\\s*[\\d]+|[\\d]+';
-    // ลอง match แบบมี = ก่อน  (แก้: ราคาอาจมี space เช่น "10 * 10")
-    // รองรับเครื่องหมาย - (และ – —) คั่นระหว่างเลขกับราคา ให้ทำงานเหมือน = เช่น "123-100x100" "35,12 - 10x10"
-    let dataMatch = line.match(new RegExp('^([\\d,،\\s]+?)\\s*[=\\-–—]\\s*(' + PRICE_PAT + ')\\s*$'));
-    // ถ้าไม่มี = ลอง match แบบไม่มี = (เลขคั่นด้วย space แล้วราคาอยู่ท้าย)
-    if (!dataMatch) {
-      dataMatch = line.match(new RegExp('^((?:\\d+[\\s,،]+)+)(' + PRICE_PAT + ')\\s*$'));
-    }
-    // กรณีเลขเดียวตามด้วยราคาโดยไม่มี = หรือ space พิเศษ
-    if (!dataMatch) {
-      dataMatch = line.match(new RegExp('^(\\d+)\\s+(' + PRICE_PAT + ')\\s*$'));
-    }
+    // รองรับ: "123 = 100x100" | "123 = 100T100" | "100 = 10 * 10" | "35,12 = 10x10" | "123-100x100"
+    // (รายละเอียดรูปแบบอยู่ในฟังก์ชัน matchDataLine ด้านบน)
+    const dataMatch = matchDataLine(line);
     if (!dataMatch) { log.push('⏭️ ข้าม: "' + line + '"'); return; }
 
     const numPart = dataMatch[1].trim();
@@ -5651,7 +5720,7 @@ function parseAndFill() {
         if (nLen === 1) { fillRow('runtop', num, price.p1, '', 0, false); return; }
         // nLen === 2 ใน context top3 → ถือว่าเป็น 2 ตัวบน
         if (nLen === 2) {
-          const withFlip = (price.sep === 'x');
+          const withFlip = decideFlip(num, price);
           fillRow('2top', num, price.p1, '', 0, withFlip);
           return;
         }
@@ -5662,7 +5731,7 @@ function parseAndFill() {
         if (ctx === '2both' && nLen === 3) {
           // เลข 3 หลักในโหมดบน-ล่าง จัดการแยกด้านล่าง (ลงแค่ 3ตัวบนอย่างเดียว ไม่ตัดลง 2 ตัว)
         } else if (nLen === 2) {
-          const withFlip = (price.sep === 'x');
+          const withFlip = decideFlip(num, price);
           fillRow('2top', num, price.p1, '', 0, withFlip);
         } else if (nLen === 1) { fillRow('runtop', num, price.p1, '', 0, false); }
         else { log.push('⚠️ context บน แต่เลขยาว ' + nLen + ' หลัก: "' + num + '"'); }
@@ -5672,7 +5741,7 @@ function parseAndFill() {
         if (ctx === '2both' && nLen === 3) {
           // เลข 3 หลักในโหมดบน-ล่าง จัดการแยกด้านล่าง (ลงแค่ 3ตัวบนอย่างเดียว ไม่ตัดลง 2 ตัว)
         } else if (nLen === 2) {
-          const withFlip2 = (price.sep === 'x');
+          const withFlip2 = decideFlip(num, price);
           fillRow('2bot', num, price.p1, '', 0, withFlip2);
         } else if (nLen === 1) { fillRow('runbot', num, price.p1, '', 0, false); }
         else { log.push('⚠️ context ล่าง แต่เลขยาว ' + nLen + ' หลัก: "' + num + '"'); }
@@ -5698,6 +5767,9 @@ function parseAndFill() {
       }
     });
   });
+
+  // แจ้งเตือนเคสลูกค้าเขียนเลขกลับไว้เองแล้ว
+  if (dupPairs.length) showDupReversePopup(dupPairs);
 
   // แสดงผล
   const statusEl = document.getElementById('parseStatus');
