@@ -3393,6 +3393,24 @@ function renderPrizeResult(bills, cfg) {
     return agents.find(a => a.name === agentName) || null;
   }
 
+  // ===== คำนวณเลขบิลของเจ้าที่ส่ง (เช่น J40, K6) ให้ทุกบิลในงวด =====
+  // หลักการเดียวกับตอนบันทึกบิล: เรียงตามลำดับที่บันทึก, 1 บิล + 1 ชื่อย่อเจ้า = นับ +1
+  const _agentRunCount = {};   // { J: 40 }
+  const billAgentCodes = {};   // { billId: ['J40','K6'] }
+  bills.forEach(function(b) {
+    const seen = {};
+    const codes = [];
+    (b.items || []).forEach(function(it) {
+      const ag = agents.find(function(a) { return a.name === it.agentName; });
+      const sn = ag && ag.shortName ? String(ag.shortName).trim().toUpperCase() : '';
+      if (!sn || seen[sn]) return;
+      seen[sn] = true;
+      _agentRunCount[sn] = (_agentRunCount[sn] || 0) + 1;
+      codes.push(sn + _agentRunCount[sn]);
+    });
+    billAgentCodes[b.billId] = codes;
+  });
+
   let grandWinTotal = 0;
   let grandBetTotal = 0;
   let foundAny = false;
@@ -3618,7 +3636,7 @@ function renderPrizeResult(bills, cfg) {
             <span style="font-size:12px;color:var(--text2);font-weight:400;margin-left:8px;">${bill.period}</span>
           </div>
           <div style="display:flex;align-items:center;gap:8px;">
-            <div style="font-size:11px;color:var(--text2);">${bill.billId}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text2);" title="${bill.billId}">${(billAgentCodes[bill.billId] || []).join(' · ') || bill.billId}</div>
             <button class="btn btn-sm" style="background:var(--blue,#4d8fff);color:#fff;" id="exportbtn_${bill.billId}"
               onclick="exportBillImage('${bill.billId}', '${bill.customerName}', '${bill.period}')">
               📷 Export รูป
