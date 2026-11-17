@@ -2938,6 +2938,12 @@ function renderSummary() {
               } else {
                 rows += `<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0;"><span>${line}</span>${retBtn}</div>`;
               }
+              if (it.priceAdjust) {
+                rows += `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:#d6334d;padding:0 0 3px 10px;">
+                  <span>เจ้ารับบางส่วน: ราคาเดิม ${(it.priceAdjust.origTotal || 0).toLocaleString('th-TH')} เหลือ ${(it.totalPrice || 0).toLocaleString('th-TH')} บาท (หมายเหตุ: ${escHtml(it.priceAdjust.note)})</span>
+                  <button class="btn btn-sm" onclick="event.stopPropagation();undoReturnItemClick('${it.itemId}','price')" style="font-size:10px;padding:1px 8px;white-space:nowrap;background:var(--dark3);color:var(--text2);border:1px solid var(--border);border-radius:10px;">ยกเลิกปรับราคา</button>
+                </div>`;
+              }
             });
           });
           const agTotal = agItems.reduce((s,it)=>s+it.totalPrice,0);
@@ -2971,6 +2977,7 @@ function renderSummary() {
             <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
               <span style="font-weight:700;color:var(--text1);">บิลที่ ${bi+1} <span style="color:var(--text2);font-size:11px;font-weight:400;">${dateShort}</span></span>
               <div style="display:flex;align-items:center;gap:8px;">
+                ${items.length ? `<button class="btn btn-sm" onclick="event.stopPropagation();openReturnBillModal('${b.billId}')" title="เจ้าที่ส่งไม่รับทั้งบิล (ตัดยอดออกทุกรายการ ไม่ลบแถวในชีต)" style="font-size:11px;padding:2px 10px;background:rgba(255,77,109,0.12);color:var(--red);border:1px solid var(--red);border-radius:10px;white-space:nowrap;">↩ เจ้าตีคืน ทั้งบิล</button>` : ''}
                 <div style="text-align:right;">
                   ${billHeaderLbl ? `<div style="font-size:10px;color:var(--text2);">${billHeaderLbl}</div>` : ''}
                   <span style="color:${billHeaderColor};font-weight:700;">${billHeaderTotal.toLocaleString('th-TH')} ฿</span>
@@ -4837,6 +4844,50 @@ async function exportCustomerImages() {
 // ==================== เจ้าตีคืน ====================
 // เจ้าที่ส่งไม่รับเลขนั้น → ตัดยอดออกจากทุกจุด (ลูกค้า/เจ้า/กำไร/สถิติ/Export) โดยไม่ลบแถวในชีต
 // เพื่อไม่ให้เลขรัน (เช่น J40, K6) เปลี่ยน
+function _ensureReturnModal() {
+  let modal = document.getElementById('returnItemModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'returnItemModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-title" id="returnItemTitle">เจ้าตีคืน</div>
+        <div id="returnItemInfo" style="background:var(--dark3);border-radius:8px;padding:10px 14px;font-size:14px;line-height:1.7;margin-bottom:12px;"></div>
+        <div id="returnItemWarn" style="display:none;font-size:12px;color:#d6334d;margin-bottom:10px;"></div>
+        <div id="returnItemModeBox" style="margin-bottom:12px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;margin-bottom:6px;cursor:pointer;">
+            <input type="radio" name="returnMode" value="full" checked onchange="onReturnModeChange()"> ตีคืนทั้งเลข (หักยอดทั้งหมด)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;">
+            <input type="radio" name="returnMode" value="part" onchange="onReturnModeChange()"> เจ้ารับบางส่วน (แก้ราคาใหม่)
+          </label>
+          <div id="returnPriceBox" style="display:none;margin:10px 0 0 22px;">
+            <div id="returnPriceRowMain" style="margin-bottom:6px;">
+              <label id="returnPriceLblMain" style="font-size:13px;color:var(--text2);display:block;"></label>
+              <input type="number" id="returnPriceMain" min="0" step="any" oninput="updateReturnPreview()" style="width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:14px;">
+            </div>
+            <div id="returnPriceRowTod" style="margin-bottom:6px;display:none;">
+              <label style="font-size:13px;color:var(--text2);display:block;">ราคาโต๊ดใหม่ (บาท)</label>
+              <input type="number" id="returnPriceTod" min="0" step="any" oninput="updateReturnPreview()" style="width:140px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);font-size:14px;">
+            </div>
+            <div id="returnPricePreview" style="font-size:13px;font-weight:700;margin-top:4px;"></div>
+          </div>
+        </div>
+        <label style="font-size:13px;color:var(--text2);">หมายเหตุ <span style="color:#d6334d;">* (จำเป็น)</span></label>
+        <textarea id="returnItemNote" rows="3" placeholder="เช่น เจ้าเต็ม ไม่รับเลขนี้ / เจ้าตีคืนทางไลน์ เวลา 14:20" style="width:100%;box-sizing:border-box;margin:6px 0 4px;padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:14px;"></textarea>
+        <div id="returnItemErr" style="display:none;font-size:12px;color:#d6334d;margin-bottom:8px;">กรุณาใส่หมายเหตุก่อนกดยืนยัน</div>
+        <div style="font-size:12px;color:var(--text2);margin:8px 0 14px;">ยอดของเลขนี้จะถูกหักออกจากยอดลูกค้า ยอดเจ้าที่ส่ง กำไร สถิติ และไฟล์ Export ทั้งหมด แต่ข้อมูลยังอยู่ในชีต (เลขรันไม่เปลี่ยน) และกด "ยกเลิกตีคืน" เพื่อย้อนกลับได้</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" style="flex:1;background:var(--dark3);color:var(--text1);" onclick="closeReturnItemModal()">ยกเลิก</button>
+          <button class="btn btn-red" id="returnItemOk" style="flex:1;" onclick="confirmReturnItem()">ยืนยันตีคืน</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  return modal;
+}
+
 function openReturnItemModal(itemId) {
   let found = null, foundBill = null, foundCust = '';
   const cb = summaryData['customerBills'] || {};
@@ -4849,28 +4900,14 @@ function openReturnItemModal(itemId) {
   });
   if (!found) { toast('ไม่พบรายการ กรุณากดโหลดสรุปใหม่', 'error'); return; }
 
-  let modal = document.getElementById('returnItemModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'returnItemModal';
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal" style="max-width:420px;">
-        <div class="modal-title">เจ้าตีคืน</div>
-        <div id="returnItemInfo" style="background:var(--dark3);border-radius:8px;padding:10px 14px;font-size:14px;line-height:1.7;margin-bottom:12px;"></div>
-        <div id="returnItemWarn" style="display:none;font-size:12px;color:#d6334d;margin-bottom:10px;"></div>
-        <label style="font-size:13px;color:var(--text2);">หมายเหตุ <span style="color:#d6334d;">* (จำเป็น)</span></label>
-        <textarea id="returnItemNote" rows="3" placeholder="เช่น เจ้าเต็ม ไม่รับเลขนี้ / เจ้าตีคืนทางไลน์ เวลา 14:20" style="width:100%;box-sizing:border-box;margin:6px 0 4px;padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:14px;"></textarea>
-        <div id="returnItemErr" style="display:none;font-size:12px;color:#d6334d;margin-bottom:8px;">กรุณาใส่หมายเหตุก่อนกดยืนยัน</div>
-        <div style="font-size:12px;color:var(--text2);margin:8px 0 14px;">ยอดของเลขนี้จะถูกหักออกจากยอดลูกค้า ยอดเจ้าที่ส่ง กำไร สถิติ และไฟล์ Export ทั้งหมด แต่ข้อมูลยังอยู่ในชีต (เลขรันไม่เปลี่ยน) และกด "ยกเลิกตีคืน" เพื่อย้อนกลับได้</div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn" style="flex:1;background:var(--dark3);color:var(--text1);" onclick="closeReturnItemModal()">ยกเลิก</button>
-          <button class="btn btn-red" id="returnItemOk" style="flex:1;" onclick="confirmReturnItem()">ยืนยันตีคืน</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-  }
+  const modal = _ensureReturnModal();
+  window._returnMode = 'item';
+  window._returnFound = found;
+  document.getElementById('returnItemTitle').textContent = 'เจ้าตีคืน';
   window._returnItemId = itemId;
+  document.getElementById('returnItemModeBox').style.display = 'block';
+  document.querySelector('input[name="returnMode"][value="full"]').checked = true;
+  document.getElementById('returnPriceBox').style.display = 'none';
   document.getElementById('returnItemInfo').innerHTML =
     `ลูกค้า: <b>${escHtml(foundCust)}</b><br>เจ้าที่ส่ง: <b>${escHtml(found.agentName)}</b><br>` +
     `เลข: <b style="color:var(--gold);font-size:17px;">${escHtml(found.number)}</b> ` +
@@ -4890,6 +4927,100 @@ function openReturnItemModal(itemId) {
   setTimeout(function() { document.getElementById('returnItemNote').focus(); }, 50);
 }
 
+function openReturnBillModal(billId) {
+  let foundBill = null, foundCust = '';
+  const cb = summaryData['customerBills'] || {};
+  Object.keys(cb).forEach(function(cn) {
+    (cb[cn] || []).forEach(function(b) { if (b.billId === billId) { foundBill = b; foundCust = cn; } });
+  });
+  if (!foundBill || !(foundBill.items || []).length) { toast('ไม่พบรายการในบิลนี้ กรุณากดโหลดสรุปใหม่', 'error'); return; }
+
+  const modal = _ensureReturnModal();
+  window._returnMode = 'bill';
+  window._returnBillId = billId;
+  document.getElementById('returnItemModeBox').style.display = 'none';
+  document.getElementById('returnItemTitle').textContent = 'เจ้าตีคืน ทั้งบิล';
+  const items = foundBill.items;
+  const sum = items.reduce(function(t, it) { return t + (it.totalPrice || 0); }, 0);
+  const agents = {};
+  items.forEach(function(it) { agents[it.agentName] = true; });
+  document.getElementById('returnItemInfo').innerHTML =
+    `ลูกค้า: <b>${escHtml(foundCust)}</b><br>เจ้าที่ส่ง: <b>${Object.keys(agents).map(escHtml).join(', ')}</b><br>` +
+    `จำนวนเลขในบิล: <b>${items.length}</b> รายการ<br>` +
+    `ยอดที่จะหักออก: <b style="color:#d6334d;">${sum.toLocaleString('th-TH')} ฿</b>`;
+  const warn = document.getElementById('returnItemWarn');
+  if (foundBill.netTransfer !== null && foundBill.netTransfer !== undefined) {
+    warn.style.display = 'block';
+    warn.textContent = 'บิลนี้เคยบันทึกผลรางวัลไปแล้ว ยอดสุทธิที่บันทึกไว้อาจไม่ตรง กรุณาตรวจรางวัลและบันทึกผลใหม่หลังตีคืน';
+  } else {
+    warn.style.display = 'none';
+  }
+  document.getElementById('returnItemNote').value = '';
+  document.getElementById('returnItemErr').style.display = 'none';
+  document.getElementById('returnItemOk').disabled = false;
+  modal.classList.add('show');
+  setTimeout(function() { document.getElementById('returnItemNote').focus(); }, 50);
+}
+
+// ราคาเดิมของเลข (ถ้าเคยปรับราคาแล้ว ใช้ราคาเดิมก่อนปรับเป็นเพดาน)
+function _returnOrigTotal(it) {
+  return (it.priceAdjust && it.priceAdjust.origTotal) ? it.priceAdjust.origTotal : (it.totalPrice || 0);
+}
+
+function onReturnModeChange() {
+  const it = window._returnFound;
+  const part = document.querySelector('input[name="returnMode"][value="part"]').checked;
+  const box = document.getElementById('returnPriceBox');
+  box.style.display = part ? 'block' : 'none';
+  if (!part || !it) return;
+  const isT = it.type === '3top' && it.xOrT !== 'X';
+  const isX = it.type === '3top' && it.xOrT === 'X';
+  const lblMain = document.getElementById('returnPriceLblMain');
+  const rowTod = document.getElementById('returnPriceRowTod');
+  if (isT) {
+    lblMain.textContent = 'ราคาตรงใหม่ (บาท)';
+    rowTod.style.display = 'block';
+  } else if (isX) {
+    lblMain.textContent = 'ราคาต่อชุดใหม่ (บาท) × ' + (it.priceTod || 0) + ' ชุด';
+    rowTod.style.display = 'none';
+  } else {
+    lblMain.textContent = 'ราคาใหม่ที่เจ้ารับ (บาท)';
+    rowTod.style.display = 'none';
+  }
+  document.getElementById('returnPriceMain').value = it.priceMain || 0;
+  document.getElementById('returnPriceTod').value = it.priceTod || 0;
+  updateReturnPreview();
+}
+
+// คำนวณราคารวมใหม่จากช่องที่กรอก — คืน { total, priceMain, priceTod } หรือ null ถ้ากรอกไม่ถูก
+function _readNewPrice() {
+  const it = window._returnFound;
+  if (!it) return null;
+  const pm = parseFloat(document.getElementById('returnPriceMain').value);
+  if (isNaN(pm) || pm < 0) return null;
+  if (it.type === '3top' && it.xOrT === 'X') {
+    return { total: pm * (it.priceTod || 0), priceMain: pm, priceTod: it.priceTod || 0 };
+  }
+  if (it.type === '3top') {
+    const pt = parseFloat(document.getElementById('returnPriceTod').value);
+    if (isNaN(pt) || pt < 0) return null;
+    return { total: pm + pt, priceMain: pm, priceTod: pt };
+  }
+  return { total: pm, priceMain: pm, priceTod: 0 };
+}
+
+function updateReturnPreview() {
+  const it = window._returnFound;
+  const el = document.getElementById('returnPricePreview');
+  if (!it || !el) return;
+  const orig = _returnOrigTotal(it);
+  const np = _readNewPrice();
+  if (!np || !(np.total > 0)) { el.style.color = '#d6334d'; el.textContent = 'กรุณากรอกราคาใหม่ (มากกว่า 0)'; return; }
+  if (!(np.total < orig)) { el.style.color = '#d6334d'; el.textContent = 'ราคาใหม่ต้องน้อยกว่าราคาเดิม ' + orig.toLocaleString('th-TH') + ' ฿'; return; }
+  el.style.color = 'var(--green)';
+  el.textContent = 'เจ้ารับ ' + np.total.toLocaleString('th-TH') + ' ฿ | ตีคืน ' + (orig - np.total).toLocaleString('th-TH') + ' ฿ (ราคาเดิม ' + orig.toLocaleString('th-TH') + ' ฿)';
+}
+
 function closeReturnItemModal() {
   const m = document.getElementById('returnItemModal');
   if (m) m.classList.remove('show');
@@ -4904,13 +5035,32 @@ function confirmReturnItem() {
     return;
   }
   err.style.display = 'none';
+  const isBill = window._returnMode === 'bill';
+
+  // เจ้ารับบางส่วน → ตรวจราคาใหม่ก่อนส่ง
+  let newPrice = null;
+  if (!isBill && document.querySelector('input[name="returnMode"][value="part"]').checked) {
+    const np = _readNewPrice();
+    const orig = _returnOrigTotal(window._returnFound || {});
+    if (!np || !(np.total > 0) || !(np.total < orig)) {
+      updateReturnPreview();
+      toast('ราคาใหม่ต้องมากกว่า 0 และน้อยกว่าราคาเดิม', 'error');
+      return;
+    }
+    newPrice = { priceMain: np.priceMain, priceTod: np.priceTod };
+  }
+
   const btn = document.getElementById('returnItemOk');
   btn.disabled = true;
-  google.script.run
+  const runner = google.script.run
     .withSuccessHandler(function(r) {
       if (r && r.success) {
         closeReturnItemModal();
-        toast('เจ้าตีคืนสำเร็จ ตัดยอด ' + (r.amount || 0).toLocaleString('th-TH') + ' ฿ ออกแล้ว', 'success');
+        if (r.partial) {
+          toast('ปรับราคาเหลือ ' + (r.newTotal || 0).toLocaleString('th-TH') + ' ฿ ตัดยอด ' + (r.amount || 0).toLocaleString('th-TH') + ' ฿ ออกแล้ว', 'success');
+        } else {
+          toast((isBill ? 'เจ้าตีคืนทั้งบิลสำเร็จ (' + (r.count || 0) + ' รายการ) ' : 'เจ้าตีคืนสำเร็จ ') + 'ตัดยอด ' + (r.amount || 0).toLocaleString('th-TH') + ' ฿ ออกแล้ว', 'success');
+        }
         summaryData = {};
         loadSummary();
       } else {
@@ -4921,16 +5071,20 @@ function confirmReturnItem() {
     .withFailureHandler(function(e) {
       btn.disabled = false;
       toast('เกิดข้อผิดพลาด: ' + (e.message || e), 'error');
-    })
-    .returnItem(window._returnItemId, note);
+    });
+  if (isBill) runner.returnBill(window._returnBillId, note);
+  else runner.returnItem(window._returnItemId, note, newPrice);
 }
 
-function undoReturnItemClick(itemId) {
-  if (!confirm('ยืนยันยกเลิกการตีคืน? ยอดของเลขนี้จะกลับมานับตามเดิม')) return;
+function undoReturnItemClick(itemId, kind) {
+  const msg = kind === 'price'
+    ? 'ยืนยันยกเลิกการปรับราคา? ราคาของเลขนี้จะกลับเป็นราคาเดิม'
+    : 'ยืนยันยกเลิกการตีคืน? ยอดของเลขนี้จะกลับมานับตามเดิม';
+  if (!confirm(msg)) return;
   google.script.run
     .withSuccessHandler(function(r) {
       if (r && r.success) {
-        toast('ยกเลิกตีคืนแล้ว ยอดกลับมานับตามเดิม', 'success');
+        toast(kind === 'price' ? 'ยกเลิกปรับราคาแล้ว กลับเป็นราคาเดิม' : 'ยกเลิกตีคืนแล้ว ยอดกลับมานับตามเดิม', 'success');
         summaryData = {};
         loadSummary();
       } else {
@@ -7053,7 +7207,7 @@ function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 // 1. นำลิงก์ Web App URL ที่ได้จากการ Deploy มาวางในเครื่องหมายคำพูดด้านล่างนี้
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz1R77ZBzTdss5rSdAN4mjhx7p-Tb1dH8R3g6gGpAw0eKHxrdX5kyJNvSej3kR-F5Yg/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_CXy5oTjRhIhPrxxKKykoi8PJH5pHAypfVlf_HDQrOzrGxPve2m7wPlLxkdMNQRe3/exec";
 
 // 2. สร้างฟังก์ชันใหม่มาแทนที่ระบบเดิมของ Google
 // รองรับทุก pattern: .withSuccessHandler(fn).withFailureHandler(fn).method()
