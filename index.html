@@ -2930,10 +2930,13 @@ function renderSummary() {
               if (it.note && it.type !== '2top' && it.type !== '2bot') line += ` [${it.note}]`;
               const strikeKey = b.billId + '_' + it.number;
               const isStruck = (window._strikeNumbers || {})[strikeKey];
+              const retBtn = it.itemId
+                ? `<button class="btn btn-sm" onclick="event.stopPropagation();openReturnItemModal('${it.itemId}')" title="เจ้าที่ส่งไม่รับเลขนี้ (ตัดยอดออก ไม่ลบแถวในชีต)" style="font-size:11px;padding:1px 8px;margin-left:8px;background:rgba(255,77,109,0.12);color:var(--red);border:1px solid var(--red);border-radius:10px;white-space:nowrap;">↩ เจ้าตีคืน</button>`
+                : '';
               if (isStruck) {
-                rows += `<div style="font-size:13px;padding:2px 0;text-decoration:line-through;text-decoration-color:#d6334d;text-decoration-thickness:2px;opacity:0.6;">${line}</div>`;
+                rows += `<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0;"><span style="text-decoration:line-through;text-decoration-color:#d6334d;text-decoration-thickness:2px;opacity:0.6;">${line}</span>${retBtn}</div>`;
               } else {
-                rows += `<div style="font-size:13px;padding:2px 0;">${line}</div>`;
+                rows += `<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0;"><span>${line}</span>${retBtn}</div>`;
               }
             });
           });
@@ -2941,6 +2944,24 @@ function renderSummary() {
           rows += `<div style="color:var(--green);font-size:12px;margin-top:3px;">รวม ${agName}: ${agTotal.toLocaleString('th-TH')} บาท</div>`;
           agentHtml += rows;
         });
+
+        // ===== รายการที่เจ้าตีคืน (ไม่นับยอด) — แสดงเพื่ออ้างอิง + ปุ่มยกเลิกกรณีกดผิด =====
+        const retItems = b.returnedItems || [];
+        let returnedHtml = '';
+        if (retItems.length) {
+          returnedHtml = `<div style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px;">
+            <div style="font-size:11px;color:#d6334d;font-weight:700;margin-bottom:3px;">เจ้าตีคืน (ไม่นับเข้ายอด)</div>` +
+            retItems.map(function(it) {
+              let rl = `${it.number} = ${it.priceMain}`;
+              if (it.xOrT) rl += ` ${it.xOrT} ${it.priceTod}`;
+              rl += ` = ${it.totalPrice} บาท`;
+              return `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:12px;padding:2px 0;">
+                <span><span style="text-decoration:line-through;opacity:0.7;">${rl}</span>
+                  <span style="color:var(--text2);"> [${escHtml(it.agentName)}] หมายเหตุ: ${escHtml(it.returnNote)}</span></span>
+                <button class="btn btn-sm" onclick="event.stopPropagation();undoReturnItemClick('${it.itemId}')" style="font-size:10px;padding:1px 8px;white-space:nowrap;background:var(--dark3);color:var(--text2);border:1px solid var(--border);border-radius:10px;">ยกเลิกตีคืน</button>
+              </div>`;
+            }).join('') + `</div>`;
+        }
 
         const billHeaderColor = pr ? (billHeaderTotal === 0 ? 'var(--green)' : '#d6334d') : 'var(--gold)';
         const billHeaderLbl = pr ? (billHeaderTotal === 0 ? 'ยอดสุทธิ = 0' : 'ค้างชำระ') : '';
@@ -2958,6 +2979,7 @@ function renderSummary() {
               </div>
             </div>
             ${agentHtml || '<div style="color:var(--text2);font-size:12px;">ไม่มีรายการ</div>'}
+            ${returnedHtml}
             ${billPrizeHtml}
           </div>`;
       }).join('');
@@ -3400,7 +3422,7 @@ function renderPrizeResult(bills, cfg) {
   bills.forEach(function(b) {
     const seen = {};
     const codes = [];
-    (b.items || []).forEach(function(it) {
+    (b.items || []).concat(b.returnedItems || []).forEach(function(it) {
       const ag = agents.find(function(a) { return a.name === it.agentName; });
       const sn = ag && ag.shortName ? String(ag.shortName).trim().toUpperCase() : '';
       if (!sn || seen[sn]) return;
@@ -4812,6 +4834,113 @@ async function exportCustomerImages() {
 }
 
 // ==================== ลบบิลจากหน้าสรุปยอด ====================
+// ==================== เจ้าตีคืน ====================
+// เจ้าที่ส่งไม่รับเลขนั้น → ตัดยอดออกจากทุกจุด (ลูกค้า/เจ้า/กำไร/สถิติ/Export) โดยไม่ลบแถวในชีต
+// เพื่อไม่ให้เลขรัน (เช่น J40, K6) เปลี่ยน
+function openReturnItemModal(itemId) {
+  let found = null, foundBill = null, foundCust = '';
+  const cb = summaryData['customerBills'] || {};
+  Object.keys(cb).forEach(function(cn) {
+    (cb[cn] || []).forEach(function(b) {
+      (b.items || []).forEach(function(it) {
+        if (it.itemId === itemId) { found = it; foundBill = b; foundCust = cn; }
+      });
+    });
+  });
+  if (!found) { toast('ไม่พบรายการ กรุณากดโหลดสรุปใหม่', 'error'); return; }
+
+  let modal = document.getElementById('returnItemModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'returnItemModal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-title">เจ้าตีคืน</div>
+        <div id="returnItemInfo" style="background:var(--dark3);border-radius:8px;padding:10px 14px;font-size:14px;line-height:1.7;margin-bottom:12px;"></div>
+        <div id="returnItemWarn" style="display:none;font-size:12px;color:#d6334d;margin-bottom:10px;"></div>
+        <label style="font-size:13px;color:var(--text2);">หมายเหตุ <span style="color:#d6334d;">* (จำเป็น)</span></label>
+        <textarea id="returnItemNote" rows="3" placeholder="เช่น เจ้าเต็ม ไม่รับเลขนี้ / เจ้าตีคืนทางไลน์ เวลา 14:20" style="width:100%;box-sizing:border-box;margin:6px 0 4px;padding:8px;border-radius:8px;border:1px solid var(--border);font-family:inherit;font-size:14px;"></textarea>
+        <div id="returnItemErr" style="display:none;font-size:12px;color:#d6334d;margin-bottom:8px;">กรุณาใส่หมายเหตุก่อนกดยืนยัน</div>
+        <div style="font-size:12px;color:var(--text2);margin:8px 0 14px;">ยอดของเลขนี้จะถูกหักออกจากยอดลูกค้า ยอดเจ้าที่ส่ง กำไร สถิติ และไฟล์ Export ทั้งหมด แต่ข้อมูลยังอยู่ในชีต (เลขรันไม่เปลี่ยน) และกด "ยกเลิกตีคืน" เพื่อย้อนกลับได้</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" style="flex:1;background:var(--dark3);color:var(--text1);" onclick="closeReturnItemModal()">ยกเลิก</button>
+          <button class="btn btn-red" id="returnItemOk" style="flex:1;" onclick="confirmReturnItem()">ยืนยันตีคืน</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  window._returnItemId = itemId;
+  document.getElementById('returnItemInfo').innerHTML =
+    `ลูกค้า: <b>${escHtml(foundCust)}</b><br>เจ้าที่ส่ง: <b>${escHtml(found.agentName)}</b><br>` +
+    `เลข: <b style="color:var(--gold);font-size:17px;">${escHtml(found.number)}</b> ` +
+    `(${found.priceMain}${found.xOrT ? ' ' + found.xOrT + ' ' + found.priceTod : ''})<br>` +
+    `ยอดที่จะหักออก: <b style="color:#d6334d;">${(found.totalPrice || 0).toLocaleString('th-TH')} ฿</b>`;
+  const warn = document.getElementById('returnItemWarn');
+  if (foundBill && foundBill.netTransfer !== null && foundBill.netTransfer !== undefined) {
+    warn.style.display = 'block';
+    warn.textContent = 'บิลนี้เคยบันทึกผลรางวัลไปแล้ว ยอดสุทธิที่บันทึกไว้อาจไม่ตรง กรุณาตรวจรางวัลและบันทึกผลใหม่หลังตีคืน';
+  } else {
+    warn.style.display = 'none';
+  }
+  document.getElementById('returnItemNote').value = '';
+  document.getElementById('returnItemErr').style.display = 'none';
+  document.getElementById('returnItemOk').disabled = false;
+  modal.classList.add('show');
+  setTimeout(function() { document.getElementById('returnItemNote').focus(); }, 50);
+}
+
+function closeReturnItemModal() {
+  const m = document.getElementById('returnItemModal');
+  if (m) m.classList.remove('show');
+}
+
+function confirmReturnItem() {
+  const note = (document.getElementById('returnItemNote').value || '').trim();
+  const err = document.getElementById('returnItemErr');
+  if (!note) {
+    err.style.display = 'block';
+    document.getElementById('returnItemNote').focus();
+    return;
+  }
+  err.style.display = 'none';
+  const btn = document.getElementById('returnItemOk');
+  btn.disabled = true;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r && r.success) {
+        closeReturnItemModal();
+        toast('เจ้าตีคืนสำเร็จ ตัดยอด ' + (r.amount || 0).toLocaleString('th-TH') + ' ฿ ออกแล้ว', 'success');
+        summaryData = {};
+        loadSummary();
+      } else {
+        btn.disabled = false;
+        toast('ตีคืนไม่สำเร็จ: ' + (r ? r.error : '?'), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false;
+      toast('เกิดข้อผิดพลาด: ' + (e.message || e), 'error');
+    })
+    .returnItem(window._returnItemId, note);
+}
+
+function undoReturnItemClick(itemId) {
+  if (!confirm('ยืนยันยกเลิกการตีคืน? ยอดของเลขนี้จะกลับมานับตามเดิม')) return;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r && r.success) {
+        toast('ยกเลิกตีคืนแล้ว ยอดกลับมานับตามเดิม', 'success');
+        summaryData = {};
+        loadSummary();
+      } else {
+        toast('ยกเลิกไม่สำเร็จ: ' + (r ? r.error : '?'), 'error');
+      }
+    })
+    .withFailureHandler(function(e) { toast('เกิดข้อผิดพลาด: ' + (e.message || e), 'error'); })
+    .undoReturnItem(itemId);
+}
+
 function deleteBillFromSummary(billId, customerName) {
   if (!confirm(`ยืนยันลบบิล "${billId}" ของ "${customerName}" ?\nการลบจะเอาบิลและรายการทั้งหมดออกจาก Sheet`)) return;
   google.script.run
